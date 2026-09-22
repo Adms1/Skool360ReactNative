@@ -1,0 +1,55 @@
+$RNFirebaseDisableSPM = true
+
+require 'xcodeproj'
+
+require Pod::Executable.execute_command('node', ['-p',
+  'require.resolve(
+    "react-native/scripts/react_native_pods.rb",
+    {paths: [process.argv[1]]},
+  )', __dir__]).strip
+
+platform :ios, min_ios_version_supported
+prepare_react_native_project!
+
+use_frameworks! :linkage => :static
+
+target 'Skool360Mobile' do
+  config = use_native_modules!
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
+  )
+
+  post_install do |installer|
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false
+    )
+
+    # GoogleService-Info.plist was added to the ios/Skool360Mobile folder
+    # directly (not via Xcode's "Add Files"), so Xcode's project never
+    # learned about it and it was never bundled into the compiled app —
+    # this is what caused FirebaseApp.configure() to crash the app at
+    # launch with no config found. Registering it here means every future
+    # `pod install` (including on EAS Build's remote macOS machines) fixes
+    # this automatically, with no manual Xcode step required.
+    project_path = File.join(__dir__, 'Skool360Mobile.xcodeproj')
+    project = Xcodeproj::Project.open(project_path)
+    app_target = project.targets.find { |t| t.name == 'Skool360Mobile' }
+
+    if app_target
+      already_added = app_target.resources_build_phase.files.any? do |f|
+        f.file_ref && f.file_ref.path == 'GoogleService-Info.plist'
+      end
+
+      unless already_added
+        plist_group = project.main_group['Skool360Mobile'] || project.main_group
+        file_ref = plist_group.new_reference('GoogleService-Info.plist')
+        app_target.resources_build_phase.add_file_reference(file_ref)
+        project.save
+      end
+    end
+  end
+end

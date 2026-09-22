@@ -1,0 +1,1 @@
+D:\Project\Skool360Mobile\android\app\build\intermediates\cxx\RelWithDebInfo\2u2s2944\obj\arm64-v8a

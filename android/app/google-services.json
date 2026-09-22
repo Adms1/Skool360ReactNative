@@ -1,0 +1,333 @@
+{
+  "project_info": {
+    "project_number": "200262709259",
+    "project_id": "edplexerpskool360",
+    "storage_bucket": "edplexerpskool360.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:63701bdd5016783d0c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.FMCTCAMPUS"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:cbdddadb07d887620c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.location10"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:1397e178b48c05580c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.location11"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:ec2f4dd896eeaf460c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.location13"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:50e8c2689e133a190c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.location14"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:c478dac98d5ab3950c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.location16"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:5205a11940b26bc80c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.location17"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:483c8150f26293320c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.location19"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:141700e0969487960c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.location20"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:23690fba9c4bac3c0c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.location38"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:47b5173206dfd9e00c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.location42"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:8384d69bf76a36d10c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.location55"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:ecb8db063f564f550c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.location68"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:c15b694793d06e9d0c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.location9"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:5844efa4dfc828eb0c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.thenewageschool"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:9ef1c88c2f0baee10c570e",
+        "android_client_info": {
+          "package_name": "com.edplex.ultimaclasses"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200262709259:android:1703088c73ec5c6b0c570e",
+        "android_client_info": {
+          "package_name": "com.edplexx.ERP"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9K-8DNPiMxMrqbssJ185W_gXD-mQnERI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,27 @@
+npx react-native run-android --deviceId your_phone_serial_id
+
+tag:ReactNativeJS
+
+# 1. Delete the hidden auto-linked code cache artifacts folder
+Remove-Item -Recurse -Force android/app/build
+
+# 2. Navigate into the native directory layout
+cd android
+
+# 3. Force Gradle to erase its build graph memory tracking trees completely
+.\gradlew clean
+
+# 4. Step back up to your main workspace root
+cd ..
+
+
+:app:installDebugInstalling APK 'app-debug.apk' on 'Pixel_8(AVD) - 16' for :app:debug> Task :app:installDebug FAILED[Incubating] Problems report is available at:
+adb uninstall com.skool360mobile
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+npx react-native run-android
+
+Compile Using the Production Release Script
+cd android
+gradlew assembleRelease
+📁 Skool360Mobile/android/app/build/outputs/apk/release/
+

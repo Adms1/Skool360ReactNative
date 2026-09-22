@@ -1,0 +1,9 @@
+{
+  "name": "Skool360Mobile",
+  "displayName": "Skool360Mobile",
+  "extra": {
+    "eas": {
+      "projectId": "0afd1516-1141-42d3-9cf3-6b1dfed986ef"
+    }
+  }
+}

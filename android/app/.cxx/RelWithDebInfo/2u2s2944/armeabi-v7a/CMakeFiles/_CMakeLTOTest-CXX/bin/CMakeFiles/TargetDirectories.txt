@@ -1,0 +1,4 @@
+D:/Project/Skool360Mobile/android/app/.cxx/RelWithDebInfo/2u2s2944/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/foo.dir
+D:/Project/Skool360Mobile/android/app/.cxx/RelWithDebInfo/2u2s2944/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/boo.dir
+D:/Project/Skool360Mobile/android/app/.cxx/RelWithDebInfo/2u2s2944/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/edit_cache.dir
+D:/Project/Skool360Mobile/android/app/.cxx/RelWithDebInfo/2u2s2944/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/rebuild_cache.dir
