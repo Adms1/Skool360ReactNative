@@ -133,6 +133,7 @@ export async function registerDeviceForPush(): Promise<void> {
     await modules.registerDeviceForRemoteMessages(modules.messagingInstance);
 
     const fcmToken = await modules.getToken(modules.messagingInstance);
+    Alert.alert('FCM TOKEN',`fcmToken : ${fcmToken}`);
     await sendTokenToServer(fcmToken);
   } catch (e: any) {
     console.warn('registerDeviceForPush error', e?.message ?? e);
