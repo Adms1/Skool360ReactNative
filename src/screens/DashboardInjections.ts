@@ -341,3 +341,24 @@ export const IOS_FAST_TAP_INJECTION = `
 })();
 true;
 `;
+
+
+export const DISABLE_LONG_PRESS_CALLOUT = `
+(function () {
+  if (window.__calloutDisabled) return;
+  window.__calloutDisabled = true;
+
+  var style = document.createElement('style');
+  style.textContent = \`
+    * {
+      -webkit-touch-callout: none !important;
+    }
+    img, a {
+      -webkit-touch-callout: none !important;
+      -webkit-user-select: none;
+    }
+  \`;
+  document.head.appendChild(style);
+})();
+true;
+`;
