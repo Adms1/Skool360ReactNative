@@ -12,6 +12,3 @@ ios/build/
 
 *.log
 .DS_Store
-
-.env
-.env.*

@@ -300,22 +300,44 @@ true;
 
 export const IOS_FAST_TAP_INJECTION = `
 (function () {
-  document.addEventListener(
-    'touchend',
-    function (e) {
-      let el = e.target;
+  if (window.__fastTapInstalled) return;
+  window.__fastTapInstalled = true;
 
-      while (el && el.tagName !== 'A') {
-        el = el.parentElement;
-      }
+  var startX = 0, startY = 0, moved = false;
+  var MOVE_THRESHOLD = 10;
 
-      if (el && el.href) {
-        e.preventDefault();
-        window.location.href = el.href;
-      }
-    },
-    true
-  );
+  document.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    moved = false;
+  }, {capture: true, passive: true});
+
+  document.addEventListener('touchmove', function (e) {
+    if (e.touches.length !== 1) return;
+    var dx = Math.abs(e.touches[0].clientX - startX);
+    var dy = Math.abs(e.touches[0].clientY - startY);
+    if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) moved = true;
+  }, {capture: true, passive: true});
+
+  document.addEventListener('touchend', function (e) {
+    if (moved) return; // this was a scroll — don't act on it at all
+
+    var el = e.target;
+    while (
+      el && el !== document &&
+      el.tagName !== 'A' &&
+      el.tagName !== 'BUTTON' &&
+      !el.hasAttribute('data-bs-toggle') &&
+      !el.onclick
+    ) {
+      el = el.parentElement;
+    }
+    if (!el || el === document) return;
+
+    e.preventDefault();
+    el.click(); // real click() — fires the site's own handler (navigation, toggle, whatever it does), just without Safari's ~300ms delay
+  }, {capture: true, passive: false});
 })();
 true;
 `;

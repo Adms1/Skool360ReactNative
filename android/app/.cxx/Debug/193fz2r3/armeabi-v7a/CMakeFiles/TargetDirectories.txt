@@ -13,6 +13,9 @@ D:/Project/Skool360Mobile/android/app/.cxx/Debug/193fz2r3/armeabi-v7a/RNFBMessag
 D:/Project/Skool360Mobile/android/app/.cxx/Debug/193fz2r3/armeabi-v7a/ReactNativeBlobUtilSpec_autolinked_build/CMakeFiles/react_codegen_ReactNativeBlobUtilSpec.dir
 D:/Project/Skool360Mobile/android/app/.cxx/Debug/193fz2r3/armeabi-v7a/ReactNativeBlobUtilSpec_autolinked_build/CMakeFiles/edit_cache.dir
 D:/Project/Skool360Mobile/android/app/.cxx/Debug/193fz2r3/armeabi-v7a/ReactNativeBlobUtilSpec_autolinked_build/CMakeFiles/rebuild_cache.dir
+D:/Project/Skool360Mobile/android/app/.cxx/Debug/193fz2r3/armeabi-v7a/RNCConfigSpec_autolinked_build/CMakeFiles/react_codegen_RNCConfigSpec.dir
+D:/Project/Skool360Mobile/android/app/.cxx/Debug/193fz2r3/armeabi-v7a/RNCConfigSpec_autolinked_build/CMakeFiles/edit_cache.dir
+D:/Project/Skool360Mobile/android/app/.cxx/Debug/193fz2r3/armeabi-v7a/RNCConfigSpec_autolinked_build/CMakeFiles/rebuild_cache.dir
 D:/Project/Skool360Mobile/android/app/.cxx/Debug/193fz2r3/armeabi-v7a/rnpdf_autolinked_build/CMakeFiles/react_codegen_rnpdf.dir
 D:/Project/Skool360Mobile/android/app/.cxx/Debug/193fz2r3/armeabi-v7a/rnpdf_autolinked_build/CMakeFiles/edit_cache.dir
 D:/Project/Skool360Mobile/android/app/.cxx/Debug/193fz2r3/armeabi-v7a/rnpdf_autolinked_build/CMakeFiles/rebuild_cache.dir

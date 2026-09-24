@@ -98,6 +98,30 @@ if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
   file(TOUCH_NOCREATE "D:/Project/Skool360Mobile/android/app/.cxx/RelWithDebInfo/2u2s2944/x86/CMakeFiles/cmake.verify_globs")
 endif()
 
+# react_codegen_SRCS at D:/Project/Skool360Mobile/node_modules/react-native-config/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
+file(GLOB NEW_GLOB LIST_DIRECTORIES true "D:/Project/Skool360Mobile/node_modules/react-native-config/android/build/generated/source/codegen/jni/*.cpp")
+set(OLD_GLOB
+  "D:/Project/Skool360Mobile/node_modules/react-native-config/android/build/generated/source/codegen/jni/RNCConfigSpec-generated.cpp"
+  )
+if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
+  message("-- GLOB mismatch!")
+  file(TOUCH_NOCREATE "D:/Project/Skool360Mobile/android/app/.cxx/RelWithDebInfo/2u2s2944/x86/CMakeFiles/cmake.verify_globs")
+endif()
+
+# react_codegen_SRCS at D:/Project/Skool360Mobile/node_modules/react-native-config/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
+file(GLOB NEW_GLOB LIST_DIRECTORIES true "D:/Project/Skool360Mobile/node_modules/react-native-config/android/build/generated/source/codegen/jni/react/renderer/components/RNCConfigSpec/*.cpp")
+set(OLD_GLOB
+  "D:/Project/Skool360Mobile/node_modules/react-native-config/android/build/generated/source/codegen/jni/react/renderer/components/RNCConfigSpec/ComponentDescriptors.cpp"
+  "D:/Project/Skool360Mobile/node_modules/react-native-config/android/build/generated/source/codegen/jni/react/renderer/components/RNCConfigSpec/EventEmitters.cpp"
+  "D:/Project/Skool360Mobile/node_modules/react-native-config/android/build/generated/source/codegen/jni/react/renderer/components/RNCConfigSpec/Props.cpp"
+  "D:/Project/Skool360Mobile/node_modules/react-native-config/android/build/generated/source/codegen/jni/react/renderer/components/RNCConfigSpec/ShadowNodes.cpp"
+  "D:/Project/Skool360Mobile/node_modules/react-native-config/android/build/generated/source/codegen/jni/react/renderer/components/RNCConfigSpec/States.cpp"
+  )
+if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
+  message("-- GLOB mismatch!")
+  file(TOUCH_NOCREATE "D:/Project/Skool360Mobile/android/app/.cxx/RelWithDebInfo/2u2s2944/x86/CMakeFiles/cmake.verify_globs")
+endif()
+
 # react_codegen_SRCS at D:/Project/Skool360Mobile/node_modules/react-native-pdf/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
 file(GLOB NEW_GLOB LIST_DIRECTORIES true "D:/Project/Skool360Mobile/node_modules/react-native-pdf/android/build/generated/source/codegen/jni/*.cpp")
 set(OLD_GLOB

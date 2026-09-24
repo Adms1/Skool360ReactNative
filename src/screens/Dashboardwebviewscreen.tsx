@@ -174,7 +174,7 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
         await config({
           addAndroidDownloads: {
             useDownloadManager: true,
-            notification: true,
+            notification: true,   // this alone produces the screenshot's popup — nothing else needed
             title: fileName,
             description: 'Downloading file',
             mime: mimeType,
@@ -182,19 +182,19 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
             path: `${RNFetchBlob.fs.dirs.DownloadDir}/${fileName}`,
           },
         }).fetch('GET', url);
-
-        ToastAndroid.show('File downloaded successfully', ToastAndroid.LONG);
+        // No ToastAndroid — DownloadManager's own notification is the only UI.
       } catch (error) {
-        ToastAndroid.show('Download failed', ToastAndroid.LONG);
+        // Silent failure by design (matches "no custom UI"); DownloadManager
+        // itself will show its own failure notification if the OS download fails.
       }
       return;
+
     }
 
+    // iOS — no system "download manager" exists; Quick Look is the native equivalent.
     try {
       const RNFetchBlob = require('react-native-blob-util').default;
       const {fs} = RNFetchBlob;
-
-      setDownloadState({visible: true, progress: 0, fileName, error: false});
 
       const res = await RNFetchBlob.fetch('GET', url);
       if (res.info().status !== 200) {
@@ -202,26 +202,15 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
       }
 
       const base64 = res.base64();
-      setDownloadState(prev => ({...prev, progress: 0.7}));
+      const filePath = `${fs.dirs.DocumentDir}/${fileName}`;
+      await fs.writeFile(filePath, base64, 'base64');
 
-      const tempPath = `${fs.dirs.CacheDir}/${fileName}`;
-      await fs.writeFile(tempPath, base64, 'base64');
-      setDownloadState(prev => ({...prev, progress: 0.9}));
-
-      await fs.cp(tempPath, `${fs.dirs.DocumentDir}/${fileName}`);
-
-      setDownloadState(prev => ({...prev, progress: 1}));
-      setTimeout(() => {
-        setDownloadState({visible: false, progress: 0, fileName: '', error: false});
-      }, 1000);
+      await RNFetchBlob.ios.previewDocument(filePath);
     } catch (error) {
-      setDownloadState(prev => ({...prev, error: true}));
-      setTimeout(() => {
-        setDownloadState({visible: false, progress: 0, fileName: '', error: false});
-      }, 2000);
+      // Only remaining UI on iOS: a native system alert, only on real failure.
+      Alert.alert('Download failed', 'Could not download this file. Please try again.');
     }
   };
-
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!reachedDashboardRef.current) {

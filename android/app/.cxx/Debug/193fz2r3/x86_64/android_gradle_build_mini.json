@@ -4,6 +4,7 @@
     "D:\\Project\\Skool360Mobile\\node_modules\\@react-native-firebase\\app\\android\\src\\reactnative\\java\\io\\invertase\\firebase\\app\\generated\\jni\\CMakeLists.txt",
     "D:\\Project\\Skool360Mobile\\node_modules\\@react-native-firebase\\messaging\\android\\src\\main\\java\\io\\invertase\\firebase\\messaging\\generated\\jni\\CMakeLists.txt",
     "D:\\Project\\Skool360Mobile\\node_modules\\react-native-blob-util\\android\\build\\generated\\source\\codegen\\jni\\CMakeLists.txt",
+    "D:\\Project\\Skool360Mobile\\node_modules\\react-native-config\\android\\build\\generated\\source\\codegen\\jni\\CMakeLists.txt",
     "D:\\Project\\Skool360Mobile\\node_modules\\react-native-pdf\\android\\build\\generated\\source\\codegen\\jni\\CMakeLists.txt",
     "D:\\Project\\Skool360Mobile\\node_modules\\react-native-safe-area-context\\android\\src\\main\\jni\\CMakeLists.txt",
     "D:\\Project\\Skool360Mobile\\node_modules\\react-native-screens\\android\\src\\main\\jni\\CMakeLists.txt",
@@ -42,6 +43,11 @@
     },
     "react_codegen_rnpdf::@7ef4ba29a735fbf48be7": {
       "artifactName": "react_codegen_rnpdf",
+      "abi": "x86_64",
+      "runtimeFiles": []
+    },
+    "react_codegen_RNCConfigSpec::@89f1b79ed4954e2f2cff": {
+      "artifactName": "react_codegen_RNCConfigSpec",
       "abi": "x86_64",
       "runtimeFiles": []
     },

@@ -26,10 +26,10 @@ export async function removeTokenFromServer(): Promise<void> {
 function loadPushModules() {
   try {
     const messagingModule = require('@react-native-firebase/messaging');
-     Alert.alert('STEP 1', 'Messaging loaded');
+
 
     const notifeeModule = require('@notifee/react-native');
-    Alert.alert('STEP 2', 'Notifee loaded');
+
 
     const notifee = notifeeModule.default || notifeeModule;
     const {AndroidImportance, EventType} = notifeeModule;
@@ -56,10 +56,7 @@ function loadPushModules() {
       EventType,
     };
     } catch (e: any) {
-      Alert.alert(
-        'loadPushModules ERROR',
-        e?.message || JSON.stringify(e)
-      );
+
 
       return null;
     }
@@ -133,7 +130,7 @@ export async function registerDeviceForPush(): Promise<void> {
     await modules.registerDeviceForRemoteMessages(modules.messagingInstance);
 
     const fcmToken = await modules.getToken(modules.messagingInstance);
-    Alert.alert('FCM TOKEN',`fcmToken : ${fcmToken}`);
+
     await sendTokenToServer(fcmToken);
   } catch (e: any) {
     console.warn('registerDeviceForPush error', e?.message ?? e);
@@ -176,7 +173,7 @@ try {
 } catch (e: any) {
     // TEMP diagnostic — this is the only way to see what's actually
     // failing on an EAS/IPA build with no attached debugger.
-    Alert.alert('loadPushModules failed', String(e?.message || e));
+
     return null;
   }
 
