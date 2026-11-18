@@ -57,7 +57,6 @@ function loadPushModules() {
     };
     } catch (e: any) {
 
-
       return null;
     }
 }
@@ -89,7 +88,6 @@ export async function requestNotificationPermission(): Promise<boolean> {
       }
     }
 
-    // Request permission using notifee (triggers Android 13+ & iOS prompts)
     const settings = await modules.notifee.requestPermission();
     return settings.authorizationStatus >= 1;
   } catch (e) {
@@ -112,6 +110,7 @@ export async function sendTokenToServer(fcmToken: string): Promise<void> {
     const response = await fetch(url, {method: 'POST'});
 
     const responseText = await response.text();
+
   } catch (err) {
   }
 }
@@ -126,7 +125,6 @@ export async function registerDeviceForPush(): Promise<void> {
 
     await ensureAndroidChannel();
 
-    // NEW — required before getToken() on current RNFB versions
     await modules.registerDeviceForRemoteMessages(modules.messagingInstance);
 
     const fcmToken = await modules.getToken(modules.messagingInstance);
@@ -164,17 +162,14 @@ try {
       pressAction: {
         id: 'default',
       },
-      smallIcon: 'ic_notification',
+      smallIcon: 'ic_launcher',
       color: '#4CAF50',
       largeIcon: 'ic_launcher',
     },
   });
 
 } catch (e: any) {
-    // TEMP diagnostic — this is the only way to see what's actually
-    // failing on an EAS/IPA build with no attached debugger.
-
-    return null;
+    return;
   }
 
 }
@@ -190,14 +185,13 @@ export function initNotifications(onNotificationTap: NotificationTapHandler): ()
 
 try {
     ensureAndroidChannel();
-    // Foreground listener
     const unsubscribeForeground = modules.onMessage(
         modules.messagingInstance,
         async (remoteMessage: any) => {
             await displayForegroundNotification(remoteMessage);
         },
     );
-    // Notification tap (foreground Notifee)
+
     const unsubscribeNotifeeForeground = modules.notifee.onForegroundEvent(
       ({type, detail}: any) => {
         if (type === modules.EventType.PRESS) {
@@ -205,22 +199,22 @@ try {
         }
       },
     );
-    // Notification tap (opened app from background)
+
     const unsubscribeOpenedApp = modules.onNotificationOpenedApp(
       modules.messagingInstance,
       (remoteMessage: any) => {
         onNotificationTap(remoteMessage.data as Record<string, string> | undefined);
       },
     );
-    // Token refresh
+
     const unsubscribeTokenRefresh = modules.onTokenRefresh(
       modules.messagingInstance,
       (newToken: string) => {
         sendTokenToServer(newToken).catch(() => {});
       },
     );
-    // Check if app was opened from quit state by clicking a notification
-    modules.getInitialNotification(modules.messagingInstance).then((remoteMessage: any) => {
+
+      modules.getInitialNotification(modules.messagingInstance).then((remoteMessage: any) => {
       if (remoteMessage) {
         onNotificationTap(remoteMessage.data as Record<string, string> | undefined);
       }

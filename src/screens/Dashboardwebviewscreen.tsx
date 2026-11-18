@@ -1,10 +1,12 @@
 import React, {useEffect, useRef, useState} from 'react';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
+import SystemNavigationBar from 'react-native-system-navigation-bar';
 import {
   Animated,
   View,
+  Text,
   StyleSheet,
   ActivityIndicator,
-  Text,
   BackHandler,
   ScrollView,
   TouchableOpacity,
@@ -13,9 +15,10 @@ import {
   Alert,
   Platform,
   PermissionsAndroid,
+  Image
 } from 'react-native';
 import {WebView as RNWebView, WebViewNavigation} from 'react-native-webview';
-import {SafeAreaView} from 'react-native-safe-area-context';
+
 import RNPrint from 'react-native-print';
 import RNFetchBlob from 'react-native-blob-util';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
@@ -24,7 +27,7 @@ import {API_CONFIG} from '../services/api';
 import {registerDeviceForPush} from '../services/Notificationservice';
 import {AuthService} from '../services/Authservice';
 import {ToastAndroid} from 'react-native';
-
+import OfflineView from './OfflineView';
 const WebView = RNWebView as any;
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DashboardWebView'>;
@@ -42,13 +45,13 @@ interface DownloadState {
   error: boolean;
 }
 
-// If we haven't reached /Dashboard within this long, reveal the WebView
-// instead of leaving the user stuck behind a spinner.
 const AUTH_TIMEOUT_MS = 15000;
 
-const PULL_TRIGGER_DISTANCE = 70; // drag past this to trigger a refresh
-const PULL_MAX_DISTANCE = 100;    // resistance cap while dragging
+const PULL_TRIGGER_DISTANCE = 150;// drag past this to trigger a refresh
+const PULL_MAX_DISTANCE = 150;    // resistance cap while dragging
 const PULL_SETTLE_DISTANCE = 56;  // where the indicator sits while refreshing
+
+
 
 import {
   DOWNLOADABLE_EXTENSIONS,
@@ -69,19 +72,134 @@ import {
   MODAL_CONTROL,
   UPI_INTERCEPT_INJECTION,
   DISABLE_ZOOM_INJECTION,
-  IOS_FAST_TAP_INJECTION
+  IOS_FAST_TAP_INJECTION,
+  EXPORT_INTERCEPT_INJECTION,
+  FILE_LINK_INJECTION,
 } from './DashboardInjections';
+// Blocks pinch-zoom and double-tap zoom inside the page (runs before the page loads and again after)
+const NO_ZOOM_INJECTION = `
+(function () {
+  var CONTENT = 'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no';
+
+  function lockViewport() {
+    var m = document.querySelector('meta[name=viewport]');
+    if (!m) {
+      m = document.createElement('meta');
+      m.name = 'viewport';
+      (document.head || document.documentElement).appendChild(m);
+    }
+    if (m.getAttribute('content') !== CONTENT) { m.setAttribute('content', CONTENT); }
+  }
+  lockViewport();
+
+  if (!window.__noZoom) {
+    window.__noZoom = true;
+
+    // keep the viewport locked even if the site rewrites its meta tag
+    try {
+      new MutationObserver(lockViewport).observe(document.documentElement, {
+        childList: true, subtree: true, attributes: true, attributeFilter: ['content']
+      });
+    } catch (e) {}
+
+    // pan/scroll only: no pinch or double-tap zoom gestures
+    var st = document.createElement('style');
+    st.textContent = 'html, body { touch-action: pan-x pan-y !important; }';
+    (document.head || document.documentElement).appendChild(st);
+
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) {
+      document.addEventListener(t, function (e) { e.preventDefault(); }, {passive: false});
+    });
+    document.addEventListener('touchmove', function (e) {
+      if (e.touches && e.touches.length > 1) { e.preventDefault(); }
+    }, {passive: false});
+    document.addEventListener('wheel', function (e) {
+      if (e.ctrlKey) { e.preventDefault(); }
+    }, {passive: false});
+  }
+
+  // Single-finger only: ignore every touch while 2 or more fingers are down
+  if (!window.__singleTouch) {
+    window.__singleTouch = true;
+    var multi = false;
+
+    function block(e) {
+      e.stopImmediatePropagation();
+      e.stopPropagation();
+      if (e.cancelable) { e.preventDefault(); }
+    }
+
+    ['touchstart', 'touchmove'].forEach(function (type) {
+      window.addEventListener(type, function (e) {
+        if (e.touches && e.touches.length > 1) { multi = true; }
+        if (multi) { block(e); }
+      }, {capture: true, passive: false});
+    });
+
+    ['touchend', 'touchcancel'].forEach(function (type) {
+      window.addEventListener(type, function (e) {
+        if (multi) { block(e); }
+        if (!e.touches || e.touches.length === 0) {
+          // keep blocking the "click" that follows a multi-finger touch, then reset
+          setTimeout(function () { multi = false; }, 350);
+        }
+      }, {capture: true, passive: false});
+    });
+
+    // taps/clicks that come out of a multi-finger gesture are dropped
+    ['click', 'dblclick', 'contextmenu'].forEach(function (type) {
+      window.addEventListener(type, function (e) { if (multi) { block(e); } }, true);
+    });
+
+    // extra fingers are not primary pointers
+    ['pointerdown', 'pointermove', 'pointerup'].forEach(function (type) {
+      window.addEventListener(type, function (e) {
+        if (e.pointerType === 'touch' && e.isPrimary === false) { block(e); }
+      }, true);
+    });
+  }
+})();
+true;
+`;
+
 const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
   const {username, password} = route.params;
+    const insets = useSafeAreaInsets();
   const webViewRef = useRef<any>(null);
+
+  // Only ever hand the WebView a non-empty string. If a script constant is missing (undefined/null),
+  // iOS fails with "injectJavaScript received 1st argument of type NSNull, expected string".
+  // A function may be passed so that a failing script builder is caught as well.
+  const safeInject = (script: string | (() => string) | null | undefined, label: string = 'script') => {
+    let code: unknown = script;
+    try {
+      if (typeof script === 'function') {
+        code = script();
+      }
+    } catch (e) {
+      code = undefined;
+    }
+    if (typeof code !== 'string' || code.length === 0) {
+      if (__DEV__) {
+        console.warn('[WebView] injectJavaScript skipped: ' + label + ' is ' + String(code));
+      }
+      return;
+    }
+    webViewRef.current?.injectJavaScript(code);
+  };
   const canGoBackRef = useRef(false);
   const reachedDashboardRef = useRef(false);
   const attemptedAutoLoginRef = useRef(false);
   const loggedOutRef = useRef(false);
+  const paymentFlowRef = useRef(false);  // user is out paying (UPI app / payment gateway)
+  const reloginTriedRef = useRef(false); // silent sign-in after a payment is tried only once
   const [authenticating, setAuthenticating] = useState(true);
   const [userOptions, setUserOptions] = useState<UserProfileOption[] | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const loadErrorRef = useRef(false);
+
   const pullAnim = useRef(new Animated.Value(0)).current;
   const lastPullDyRef = useRef(0);
   const [downloadState, setDownloadState] = useState<DownloadState>({
@@ -112,6 +230,7 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
   // Universal UPI opener with fallback for Google Pay / PhonePe / Paytm
   const openUpiPayment = async (rawUrl: string) => {
     if (!rawUrl) return;
+    paymentFlowRef.current = true;
     const targetUrl =
       rawUrl.startsWith('intent://') || rawUrl.startsWith('intent:')
         ? resolveIntentUrl(rawUrl)
@@ -141,7 +260,11 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
       }
     }
   };
-
+const showToast = (message: string) => {
+  if (Platform.OS === 'android') {
+    ToastAndroid.show(message, ToastAndroid.SHORT);
+  }
+};
   const requestStoragePermissionIfNeeded = async (): Promise<boolean> => {
     if (Platform.OS !== 'android' || Platform.Version >= 29) return true;
     try {
@@ -154,7 +277,7 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
     }
   };
 
-  const downloadFile = async (url: string) => {
+  const downloadFile = async (url: string, nameHint?: string) => {
     if (!url) return;
 
     const granted = await requestStoragePermissionIfNeeded();
@@ -163,33 +286,35 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
       return;
     }
 
-    const fileName = getFileNameFromUrl(url);
+    const fileName = getFileNameFromUrl(url, nameHint);
     const mimeType = guessMimeType(fileName);
 
-    if (Platform.OS === 'android') {
-      try {
-        const RNFetchBlob = require('react-native-blob-util').default;
-        const {config} = RNFetchBlob;
+   if (Platform.OS === 'android') {
+     try {
+       const RNFetchBlob = require('react-native-blob-util').default;
+       const path = `${RNFetchBlob.fs.dirs.DownloadDir}/${fileName}`;
+       const {config} = RNFetchBlob;
 
-        await config({
-          addAndroidDownloads: {
-            useDownloadManager: true,
-            notification: true,   // this alone produces the screenshot's popup — nothing else needed
-            title: fileName,
-            description: 'Downloading file',
-            mime: mimeType,
-            mediaScannable: true,
-            path: `${RNFetchBlob.fs.dirs.DownloadDir}/${fileName}`,
-          },
-        }).fetch('GET', url);
-        // No ToastAndroid — DownloadManager's own notification is the only UI.
-      } catch (error) {
-        // Silent failure by design (matches "no custom UI"); DownloadManager
-        // itself will show its own failure notification if the OS download fails.
-      }
-      return;
-
-    }
+       showToast('Downloading...');
+       await RNFetchBlob.config({path}).fetch('GET', url);
+       await RNFetchBlob.fs.scanFile([{path, mime: mimeType}]);
+       await config({
+                 addAndroidDownloads: {
+                   useDownloadManager: true,
+                   notification: true,   // this alone produces the screenshot's popup — nothing else needed
+                   title: fileName,
+                   description: 'Downloading file',
+                   mime: mimeType,
+                   mediaScannable: true,
+                   path: `${RNFetchBlob.fs.dirs.DownloadDir}/${fileName}`,
+                 },
+               }).fetch('GET', url);
+       showToast('Downloaded');
+     } catch (error) {
+       showToast('Download failed');
+     }
+     return;
+   }
 
     // iOS — no system "download manager" exists; Quick Look is the native equivalent.
     try {
@@ -219,7 +344,9 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
     }, AUTH_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, []);
-
+useEffect(() => {
+  SystemNavigationBar.setNavigationColor('#d5e1f9', 'dark', 'navigation');
+}, []);
   useEffect(() => {
       if (Platform.OS !== 'android') return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -227,7 +354,7 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
         setVideoUrl(null);
         return true;
       }
-      if (canGoBackRef.current && !currentUrlRef.current.includes('/Dashboard')) {
+      if (canGoBackRef.current && !currentUrlRef.current?.includes('/Dashboard')) {
             webViewRef.current?.goBack();
             return true;
           }
@@ -298,6 +425,36 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
      d3.stop();
    };
  }, [showSplash]);
+const redirectToLogin = () => {
+  if (loggedOutRef.current) return;
+  loggedOutRef.current = true;
+  navigation.reset({index: 0, routes: [{name: 'Login'}]});
+  AuthService.logout().catch(() => {});
+};
+
+// Only the page address counts: "?ReturnUrl=...login..." in the query string does not
+const isLoginPageUrl = (url: string) =>
+  url.split('#')[0].split('?')[0].toLowerCase().includes('login');
+
+// After a payment the gateway sends the user back to the site, and the site may have lost
+// the session and show its login page. Instead of logging the user out, sign in again silently
+// with the saved credentials (once).
+const startSilentRelogin = () => {
+  reloginTriedRef.current = true;
+  reachedDashboardRef.current = false;
+  attemptedAutoLoginRef.current = false;
+  setAuthenticating(true);
+};
+
+// Returns true when the login page may load (silent sign-in), false when the user is logged out
+const onLoginPageReached = (): boolean => {
+  if (paymentFlowRef.current && !reloginTriedRef.current) {
+    startSilentRelogin();
+    return true;
+  }
+  redirectToLogin();
+  return false;
+};
   const handleNavStateChange = (navState: WebViewNavigation) => {
      canGoBackRef.current = navState.canGoBack;
       currentUrlRef.current = navState.url;
@@ -305,6 +462,9 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
     if (navState.url.includes('/Dashboard') && !navState.loading) {
       if (!reachedDashboardRef.current) {
         reachedDashboardRef.current = true;
+        paymentFlowRef.current = false;
+        reloginTriedRef.current = false;
+        loggedOutRef.current = false;
         registerDeviceForPush();
       }
       setAuthenticating(false);
@@ -312,34 +472,44 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
       return;
     }
 
-    if (
-      reachedDashboardRef.current &&
-      !loggedOutRef.current &&
-      navState.url.toLowerCase().includes('login')
-    ) {
-        setAuthenticating(true)
-      loggedOutRef.current = true;
-      navigation.reset({index: 0, routes: [{name: 'Login'}]});
-      AuthService.logout().catch(() => {});
-    }
+  if (reachedDashboardRef.current && isLoginPageUrl(navState.url)) {
+    onLoginPageReached();
+  }
   };
-
+useEffect(() => {
+  if (!errorMsg) return;
+  const t = setTimeout(() => setErrorMsg(null), 6000);
+  return () => clearTimeout(t);
+}, [errorMsg]);
+const handleRetry = () => {
+  loadErrorRef.current = false;
+  setLoadError(null);
+  if (!reachedDashboardRef.current) setAuthenticating(true);
+  webViewRef.current?.reload();
+};
   const handleLoadEnd = (event: any) => {
+      if (loadErrorRef.current) return;
     if (refreshing) {
       setRefreshing(false);
       springTo(0);
     }
-    webViewRef.current?.injectJavaScript(PULL_REFRESH_INJECTION);
-    webViewRef.current?.injectJavaScript(PRINT_OVERRIDE_INJECTION);
-    webViewRef.current?.injectJavaScript(UPI_INTERCEPT_INJECTION);
-    webViewRef.current?.injectJavaScript(MODAL_CONTROL);
-    webViewRef.current?.injectJavaScript(DISABLE_ZOOM_INJECTION);
-    webViewRef.current?.injectJavaScript(IOS_FAST_TAP_INJECTION);
+    safeInject(PULL_REFRESH_INJECTION, 'PULL_REFRESH_INJECTION');
+    safeInject(PRINT_OVERRIDE_INJECTION, 'PRINT_OVERRIDE_INJECTION');
+    safeInject(UPI_INTERCEPT_INJECTION, 'UPI_INTERCEPT_INJECTION');
+    safeInject(MODAL_CONTROL, 'MODAL_CONTROL');
+    safeInject(DISABLE_ZOOM_INJECTION, 'DISABLE_ZOOM_INJECTION');
+    safeInject(NO_ZOOM_INJECTION, 'NO_ZOOM_INJECTION');
+    safeInject(IOS_FAST_TAP_INJECTION, 'IOS_FAST_TAP_INJECTION');
+      safeInject(EXPORT_INTERCEPT_INJECTION, 'EXPORT_INTERCEPT_INJECTION');
+    safeInject(FILE_LINK_INJECTION, 'FILE_LINK_INJECTION');
     const loadedUrl: string = event?.nativeEvent?.url ?? '';
     const onDashboard = reachedDashboardRef.current || loadedUrl.includes('/Dashboard');
     if (onDashboard) {
       if (!reachedDashboardRef.current) {
         reachedDashboardRef.current = true;
+        paymentFlowRef.current = false;
+        reloginTriedRef.current = false;
+        loggedOutRef.current = false;
         registerDeviceForPush();
       }
       setAuthenticating(false);
@@ -348,13 +518,48 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
 
     if (!attemptedAutoLoginRef.current) {
       attemptedAutoLoginRef.current = true;
-      webViewRef.current?.injectJavaScript(buildLoginInjection(username, password));
+      safeInject(() => buildLoginInjection(username, password), 'buildLoginInjection');
     }
   };
+const saveBase64File = async (fileName: string, mime: string, data: string) => {
+  const granted = await requestStoragePermissionIfNeeded();
+  if (!granted) {
+    Alert.alert('Permission required', 'Storage permission is needed to save the file.');
+    return;
+  }
+  try {
+    const {fs} = RNFetchBlob;
+  if (Platform.OS === 'android') {
+    const path = `${fs.dirs.DownloadDir}/${fileName}`;
+    showToast('Downloading...');
+    await fs.writeFile(path, data, 'base64');
+    await RNFetchBlob.android.addCompleteDownload({
+      title: fileName,
+      description: 'Downloaded',
+      mime: mime || guessMimeType(fileName),
+      path,
+      showNotification: true,
+    });
+    showToast('Downloaded');
+  } else {
+      const path = `${fs.dirs.DocumentDir}/${fileName}`;
+      await fs.writeFile(path, data, 'base64');
+      await RNFetchBlob.ios.previewDocument(path);
+    }
+  } catch {
+    Alert.alert('Download failed', 'Could not save this file. Please try again.');
+  }
+};
   const handleMessage = (event: any) => {
     try {
       const payload = JSON.parse(event.nativeEvent.data);
 
+      if (payload?.type === 'DOWNLOAD_FILE') {
+        if (payload.url) {
+          downloadFile(String(payload.url), payload.name ? String(payload.name) : undefined);
+        }
+        return;
+      }
       if (payload?.type === 'OPEN_DEEP_LINK') {
         openUpiPayment(payload.url);
         return;
@@ -372,6 +577,10 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
         }
         return;
       }
+  if (payload?.type === 'FILE_BASE64') {
+    saveBase64File(payload.fileName, payload.mime, payload.data);
+    return;
+  }
       if (payload?.type === 'SELECT_USER_OPTIONS') {
         setUserOptions(payload.options);
         setErrorMsg(null);
@@ -383,6 +592,16 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
         return;
       }
       if (payload?.type === 'INJECT_ERROR') {
+        // The silent sign-in ran on a page that has no login form (e.g. "Payment Failed"),
+        // which means the user is still signed in. Nothing to fix, so show no error.
+        if (payload.reason === 'fields-not-found' && reloginTriedRef.current) {
+          reachedDashboardRef.current = true;
+          reloginTriedRef.current = false;
+          paymentFlowRef.current = false;
+          setAuthenticating(false);
+          setErrorMsg(null);
+          return;
+        }
         setErrorMsg(
           'Could not sign in automatically (' +
             (payload.reason || 'unknown') +
@@ -422,7 +641,7 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
   const handleSelectProfile = (index: number) => {
     setUserOptions(null);
     setAuthenticating(true);
-    webViewRef.current?.injectJavaScript(buildSelectUserInjection(index));
+    safeInject(() => buildSelectUserInjection(index), 'buildSelectUserInjection');
   };
 
   // Domains that must always stay INSIDE the WebView
@@ -451,6 +670,16 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
     'icicibank.com',
   ];
 
+  // Payment gateways / banks (everything in the list after the two skool360 domains)
+  const isPaymentUrl = (url: string): boolean => {
+    try {
+      const host = new URL(url).hostname.toLowerCase();
+      return TRUSTED_DOMAINS.slice(2).some(d => host === d || host.endsWith('.' + d));
+    } catch {
+      return false;
+    }
+  };
+
   const isTrustedUrl = (url: string): boolean => {
     try {
       const host = new URL(url).hostname.toLowerCase();
@@ -460,15 +689,16 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
     }
   };
 
-  const handleShouldStartLoadWithRequest = (request: any): boolean => {
-    const url: string = request?.url || '';
-    if (
-        reachedDashboardRef.current &&
-        request.navigationType === 'backforward' &&
-        !url.includes('/Dashboard')
-      ) {
-        return false;
-      }
+ const handleShouldStartLoadWithRequest = (request: any): boolean => {
+   const url: string = request?.url || '';
+
+   if (isPaymentUrl(url)) {
+     paymentFlowRef.current = true;
+   }
+
+   if (reachedDashboardRef.current && isLoginPageUrl(url)) {
+     return onLoginPageReached();
+   }
     // 1. Non-http schemes → UPI / payment app deep links
     if (
       !url.startsWith('http://') &&
@@ -480,11 +710,7 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
       return false;
     }
 
-    if (looksLikeVideo(url)) {
-      setVideoUrl(url);
-      return false;
-    }
-
+    // a link to a file (image, audio, video, document ...) downloads instead of opening
     if (looksLikeDownload(url)) {
       downloadFile(url);
       return false;
@@ -508,17 +734,12 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
         openUpiPayment(targetUrl);
         return;
       }
-      if (looksLikeVideo(targetUrl)) {
-        setVideoUrl(targetUrl);
-        return;
-      }
+      // a link to a file (image, audio, video, document ...) downloads instead of opening
       if (looksLikeDownload(targetUrl)) {
         downloadFile(targetUrl);
         return;
       }
-      webViewRef.current?.injectJavaScript(
-        `window.location.href = ${JSON.stringify(targetUrl)}; true;`,
-      );
+      safeInject(`window.location.href = ${JSON.stringify(targetUrl)}; true;`, 'open-window redirect');
     }
   };
 
@@ -527,6 +748,10 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
       <WebView
         ref={webViewRef}
         source={{uri: API_CONFIG.DASHBOARD_URL}}
+         textZoom={100}
+        setBuiltInZoomControls={false}
+        setDisplayZoomControls={false}
+        injectedJavaScriptBeforeContentLoaded={NO_ZOOM_INJECTION}
         allowsBackForwardNavigationGestures={!isOnDashboard}
         originWhitelist={['*']}
         onNavigationStateChange={handleNavStateChange}
@@ -541,18 +766,26 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
             downloadFile(downloadUrl);
           }
         }}
-        onError={(syntheticEvent: any) => {
-          const failingUrl = syntheticEvent?.nativeEvent?.url || '';
-          if (
-            failingUrl.startsWith('upi://') ||
-            failingUrl.startsWith('intent://') ||
-            failingUrl.startsWith('gpay://') ||
-            failingUrl.startsWith('phonepe://') ||
-            failingUrl.startsWith('paytmmp://')
-          ) {
-            openUpiPayment(failingUrl);
-          }
-        }}
+       onError={(syntheticEvent: any) => {
+         const {url: failingUrl = '', description = ''} = syntheticEvent?.nativeEvent || {};
+         if (
+           failingUrl.startsWith('upi://') ||
+           failingUrl.startsWith('intent://') ||
+           failingUrl.startsWith('gpay://') ||
+           failingUrl.startsWith('phonepe://') ||
+           failingUrl.startsWith('paytmmp://')
+         ) {
+           openUpiPayment(failingUrl);
+           return;
+         }
+         loadErrorRef.current = true;
+         setAuthenticating(false);
+         setLoadError(
+           /INTERNET_DISCONNECTED|NAME_NOT_RESOLVED|TIMED_OUT|NETWORK/i.test(description)
+             ? 'No internet connection'
+             : 'Something went wrong',
+         );
+       }}
         setSupportMultipleWindows={true}
         javaScriptCanOpenWindowsAutomatically={true}
         sharedCookiesEnabled
@@ -563,6 +796,9 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
         pullToRefreshEnabled={false}
         style={hideWebView ? styles.hidden : styles.visible}
       />
+            {!hideWebView && (
+              <View style={{height: insets.bottom, backgroundColor: '#d5e1f9'}} />
+            )}
         {showSplash && (
           <Animated.View
             pointerEvents="none"
@@ -570,17 +806,12 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
               styles.splashOverlay,
               {opacity: splashFade},
             ]}>
-            <Animated.Image
-              source={require('../assets/images/skool360-logo.png')}
-              resizeMode="contain"
-              style={[
-                styles.splashLogo,
-                {
-                  transform: [{scale: logoPulse}],
-                },
-              ]}
-            />
-            <Text style={styles.splashTitle}>
+          <Image
+               source={require('../assets/images/skool360-logo.png')}
+                style={styles.orgName}
+               resizeMode="contain"
+             />
+            <Text allowFontScaling={false} style={styles.splashTitle}>
               Getting things ready
             </Text>
 
@@ -610,17 +841,19 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
             </View>
           </Animated.View>
         )}
+    {!!loadError && <OfflineView title={loadError} onRetry={handleRetry} />}
       {!hideWebView && (
         <Animated.View
           pointerEvents="none"
           style={[
             styles.pullIndicator,
             {
+              top: insets.top,
               transform: [
                 {
                   translateY: pullAnim.interpolate({
-                    inputRange: [0, PULL_MAX_DISTANCE],
-                    outputRange: [-40, 20],
+                    inputRange: [0, PULL_SETTLE_DISTANCE, PULL_MAX_DISTANCE],
+                    outputRange: [-50, 12, 28],
                     extrapolate: 'clamp',
                   }),
                 },
@@ -632,7 +865,9 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
               }),
             },
           ]}>
-          <ActivityIndicator size="small" color={NAVY} />
+          <View style={styles.pullCircle}>
+            <ActivityIndicator size="small" color="#111111" />
+          </View>
         </Animated.View>
       )}
 
@@ -646,16 +881,16 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
                 activeOpacity={0.7}
                 onPress={() => handleSelectProfile(index)}>
                 <View style={styles.selectAvatar}>
-                  <Text style={styles.selectAvatarText}>{'\u{1F464}'}</Text>
+                  <Text allowFontScaling={false} style={styles.selectAvatarText}>{'\u{1F464}'}</Text>
                 </View>
                 <View style={styles.selectCardBody}>
-                  <Text style={styles.selectName}>{option.name}</Text>
-                  {!!option.userType && <Text style={styles.selectMeta}>{option.userType}</Text>}
+                  <Text allowFontScaling={false} style={styles.selectName}>{option.name}</Text>
+                  {!!option.userType && <Text allowFontScaling={false} style={styles.selectMeta}>{option.userType}</Text>}
                   {!!option.schoolName && (
-                    <Text style={styles.selectMeta}>{option.schoolName}</Text>
+                    <Text allowFontScaling={false} style={styles.selectMeta}>{option.schoolName}</Text>
                   )}
                 </View>
-                <Text style={styles.selectChevron}>{'\u203A'}</Text>
+                <Text allowFontScaling={false} style={styles.selectChevron}>{'\u203A'}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -664,11 +899,11 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
       <Modal visible={downloadState.visible} transparent animationType="fade" statusBarTranslucent>
         <View style={styles.overlay}>
           <View style={styles.downloadCard}>
-            <Text style={styles.downloadFileName} numberOfLines={1}>
+            <Text allowFontScaling={false} style={styles.downloadFileName} numberOfLines={1}>
               {downloadState.fileName}
             </Text>
             {downloadState.error ? (
-              <Text style={styles.downloadErrorText}>Download failed</Text>
+              <Text allowFontScaling={false} style={styles.downloadErrorText}>Download failed</Text>
             ) : (
               <>
                 <View style={styles.progressTrack}>
@@ -679,7 +914,7 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
                     ]}
                   />
                 </View>
-                <Text style={styles.progressLabel}>
+                <Text allowFontScaling={false} style={styles.progressLabel}>
                   {downloadState.progress >= 1
                     ? 'Downloaded'
                     : `${Math.round(downloadState.progress * 100)}%`}
@@ -695,7 +930,7 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
         onRequestClose={() => setVideoUrl(null)}>
         <View style={styles.videoContainer}>
           <TouchableOpacity onPress={() => setVideoUrl(null)} style={styles.videoCloseBtn}>
-            <Text style={styles.videoCloseText}>{'\u2715'}  Close</Text>
+            <Text allowFontScaling={false} style={styles.videoCloseText}>{'\u2715'}  Close</Text>
           </TouchableOpacity>
           {videoUrl && (
             <WebView
@@ -710,7 +945,7 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
 
       {errorMsg && (
         <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>{errorMsg}</Text>
+          <Text allowFontScaling={false} style={styles.errorText}>{errorMsg}</Text>
         </View>
       )}
     </SafeAreaView>
@@ -718,11 +953,11 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
 };
 
 const NAVY = '#173a9c';
-
+const BLUE = '#3b82f6';
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-    backgroundColor: NAVY,
+    backgroundColor: BLUE,
   },
   visible: {
     flex: 1,
@@ -747,13 +982,13 @@ const styles = StyleSheet.create({
   },
   overlayText: {
     marginTop: 12,
-    color: NAVY,
+    color: BLUE,
     fontSize: 14,
     fontWeight: '600',
   },
   selectOverlay: {
     flex: 1,
-    backgroundColor: NAVY,
+    backgroundColor: BLUE,
   },
   selectScrollContent: {
     flexGrow: 1,
@@ -882,8 +1117,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    paddingTop: 12,
     zIndex: 10,
+  },
+  pullCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
 splashOverlay: {
   position: 'absolute',
@@ -916,6 +1163,50 @@ dot: {
   height: 8,
   borderRadius: 4,
   backgroundColor: NAVY,
+},
+ orgName: {
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 24,
+    fontSize: 22,
+    color: '#1b5e3b',
+    fontFamily: Platform.select({ios: 'Georgia', android: 'serif'}),
+  },
+errorScreen: {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: '#ffffff',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingHorizontal: 30,
+  zIndex: 60,
+},
+errorTitle: {
+  color: NAVY,
+  fontSize: 17,
+  fontWeight: '700',
+  marginBottom: 8,
+},
+errorSub: {
+  color: '#6b7494',
+  fontSize: 13,
+  textAlign: 'center',
+  marginBottom: 24,
+},
+retryButton: {
+  backgroundColor: BLUE,
+  borderRadius: 4,
+  paddingVertical: 12,
+  paddingHorizontal: 36,
+},
+retryText: {
+  color: '#fff',
+  fontSize: 15,
+  fontWeight: '600',
+  letterSpacing: 0.5,
 },
 });
 

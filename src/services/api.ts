@@ -23,7 +23,7 @@ export const buildLoginUrl = (
   location: number = 0,
 ): string => {
   const params = new URLSearchParams({
-    TokenId: API_CONFIG.TOKEN_ID,
+    TokenId: API_CONFIG.TOKEN_ID || '',
     username,
     password,
     location: String(location),
@@ -43,7 +43,7 @@ export const buildDeviceTokenUrl = (
       : API_CONFIG.ENDPOINTS.DEVICE_TOKEN_ANDROID;
 
   const params = new URLSearchParams({
-    TokenId: API_CONFIG.TOKEN_ID,
+    TokenId: API_CONFIG.TOKEN_ID || '',
     DeviceTokenId: deviceTokenId,
     UserId: userId,
     version: '0',
@@ -57,10 +57,9 @@ export const buildDeviceTokenRemoveUrl = (
   userId: string,
 ): string => {
   const params = new URLSearchParams({
-    TokenId: API_CONFIG.TOKEN_ID,
+    TokenId: API_CONFIG.TOKEN_ID || '',
     DeviceTokenId: deviceTokenId,
     UserId: userId,
   });
-
   return `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.DEVICE_TOKEN_REMOVE}?${params.toString()}`;
 };

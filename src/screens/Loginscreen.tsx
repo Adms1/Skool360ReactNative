@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useRef, useEffect} from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Alert,
   Image,
   Keyboard,
+  Animated,
 } from 'react-native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '../services/Types';
@@ -28,6 +29,33 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const [toastMsg, setToastMsg] = useState('');
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
+
+  const showToast = (message: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastMsg(message);
+    Animated.timing(toastOpacity, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }, 3000);
+  };
 
   const handleLogin = async () => {
     if (!userId.trim() || !password.trim()) {
@@ -50,7 +78,11 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
         ],
       });
     } catch (err: any) {
-      Alert.alert('Login failed', err?.message ?? 'Something went wrong.');
+      if (err?.code === 'NETWORK' || err?.code === 'SERVER') {
+        showToast(err.message);
+      } else {
+        showToast('Incorrect credentials..');
+      }
     } finally {
       setLoading(false);
     }
@@ -69,21 +101,26 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
             style={styles.logo}
             resizeMode="contain"
           />
-
-          <Text style={styles.label}>UserID</Text>
+          <Text allowFontScaling={false} style={styles.label}>
+            UserID
+          </Text>
           <TextInput
+            allowFontScaling={false}
             style={styles.input}
             value={userId}
             onChangeText={setUserId}
             autoCapitalize="none"
             autoCorrect={false}
             placeholder="Enter UserID"
-            placeholderTextColor="#9aa5c9"
+            placeholderTextColor="#b5b9c2"
           />
 
-          <Text style={styles.label}>Password</Text>
+          <Text allowFontScaling={false} style={styles.label}>
+            Password
+          </Text>
           <View style={styles.passwordRow}>
             <TextInput
+              allowFontScaling={false}
               style={styles.passwordInput}
               value={password}
               onChangeText={setPassword}
@@ -91,12 +128,14 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
               autoCapitalize="none"
               autoCorrect={false}
               placeholder="Enter Password"
-              placeholderTextColor="#9aa5c9"
+              placeholderTextColor="#b5b9c2"
             />
             <TouchableOpacity
               onPress={() => setShowPassword(prev => !prev)}
               style={styles.eyeButton}>
-              <Text style={styles.eyeText}>{showPassword ? 'Hide' : 'Show'}</Text>
+              <Text allowFontScaling={false} style={styles.eyeText}>
+                {showPassword ? 'Hide' : 'Show'}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -107,79 +146,100 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.loginButtonText}>Log in</Text>
+              <Text allowFontScaling={false} style={styles.loginButtonText}>
+                Log in
+              </Text>
             )}
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.toast, {opacity: toastOpacity}]}>
+        <Text allowFontScaling={false} style={styles.toastText}>
+          {toastMsg}
+        </Text>
+      </Animated.View>
     </KeyboardAvoidingView>
   );
 };
 
-const NAVY = '#173a9c';
-const CARD_BG = '#ffffff';
-const FIELD_BG = '#eef1fb';
+const BLUE = '#3b82f6';
+const NAVY = '#1e3a8a';
+const BORDER = '#cfd4dc';
 
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-    backgroundColor: NAVY,
+    backgroundColor: BLUE,
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    paddingHorizontal: 30,
+    paddingVertical: 24,
   },
   card: {
     width: '100%',
-    maxWidth: 360,
-    backgroundColor: CARD_BG,
-    borderRadius: 20,
-    padding: 28,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 6},
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
+    backgroundColor: '#ffffff',
+    borderRadius: 4,
+    paddingHorizontal: 30,
+    paddingTop: 30,
+    paddingBottom: 28,
   },
   logo: {
-    width:  220,
-    height: 70,
-     alignSelf: 'center',
-    marginBottom: 32,
+     width:  220,
+     height: 70,
+      alignSelf: 'center',
+     marginBottom: 32,
+   },
+  orgName: {
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 24,
+    fontSize: 22,
+    color: '#1b5e3b',
+    fontFamily: Platform.select({ios: 'Georgia', android: 'serif'}),
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: NAVY,
+    fontSize: 16,
+    color: '#111',
     marginBottom: 6,
   },
   input: {
-    backgroundColor: FIELD_BG,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    height: 46,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 6,
+    paddingHorizontal: 10,
     fontSize: 15,
     color: '#1c1c1c',
-    marginBottom: 20,
+    marginBottom: 14,
   },
   passwordRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: FIELD_BG,
-    borderRadius: 8,
-    marginBottom: 28,
+    height: 46,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 6,
+    marginBottom: 18,
   },
   passwordInput: {
     flex: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    height: '100%',
+    paddingHorizontal: 10,
     fontSize: 15,
     color: '#1c1c1c',
   },
   eyeButton: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   eyeText: {
     color: NAVY,
@@ -187,9 +247,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   loginButton: {
-    backgroundColor: NAVY,
-    borderRadius: 10,
-    paddingVertical: 14,
+    height: 46,
+    backgroundColor: BLUE,
+    borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -199,7 +259,38 @@ const styles = StyleSheet.create({
   loginButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  poweredBy: {
+    alignSelf: 'center',
+    marginTop: 22,
+    fontSize: 12,
+    color: '#8a8f98',
+  },
+  bottomLogo: {
+    width: 140,
+    height: 40,
+    alignSelf: 'center',
+    marginTop: 4,
+  },
+  toast: {
+    position: 'absolute',
+    bottom: 40,
+    left: 30,
+    right: 30,
+    backgroundColor: '#d32f2f',
+    borderRadius: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    elevation: 6,
+  },
+  toastText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
 

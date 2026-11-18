@@ -1,9 +1,20 @@
-
 export const DOWNLOADABLE_EXTENSIONS = [
+  // documents
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.zip',
+  '.txt', '.rtf', '.rar', '.7z',
+  // images
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp',
+  // audio
+  '.mp3', '.wav', '.m4a', '.aac', '.ogg',
+  // video
+  '.mp4', '.mov', '.m4v', '.webm', '.3gp',
 ];
 
+// Used only where the app plays a video itself (library "view file"); links in pages are downloaded.
 export const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm'];
+
+// File storage hosts: a link to one of these is always a file, even when the address has no extension
+export const FILE_HOSTS = ['amazonaws.com', 'cloudfront.net'];
 
 export const MIME_TYPES: Record<string, string> = {
   '.pdf': 'application/pdf',
@@ -15,16 +26,37 @@ export const MIME_TYPES: Record<string, string> = {
   '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   '.csv': 'text/csv',
   '.zip': 'application/zip',
+  '.rar': 'application/vnd.rar',
+  '.7z': 'application/x-7z-compressed',
+  '.txt': 'text/plain',
+  '.rtf': 'application/rtf',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.ogg': 'audio/ogg',
+  '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.m4v': 'video/x-m4v',
+  '.webm': 'video/webm',
+  '.3gp': 'video/3gpp',
 };
 
-export function getFileNameFromUrl(url: string): string {
+export function getFileNameFromUrl(url: string, nameHint?: string): string {
   try {
-    const clean = url.split('?')[0];
+    const clean = url.split('?')[0].split('#')[0];
     const segments = clean.split('/');
     const last = decodeURIComponent(segments[segments.length - 1] || '');
+    // the address has no file extension (e.g. a storage key): use the link's own name when it has one
+    if (last && !/\.[A-Za-z0-9]{2,5}$/.test(last) && nameHint && /\.[A-Za-z0-9]{2,5}$/.test(nameHint.trim())) {
+      return nameHint.trim().replace(/[\\/:*?"<>|]/g, '_');
+    }
     return last || `download_${Date.now()}`;
   } catch {
     return `download_${Date.now()}`;
@@ -40,9 +72,20 @@ export function guessMimeType(fileName: string): string {
   return MIME_TYPES[getExtension(fileName)] || 'application/octet-stream';
 }
 
+function hostOf(url: string): string {
+  const m = url.match(/^https?:\/\/([^/?#:]+)/i);
+  return m ? m[1].toLowerCase() : '';
+}
+
+export function isFileHostUrl(url: string): boolean {
+  const host = hostOf(url);
+  return !!host && FILE_HOSTS.some(h => host === h || host.endsWith('.' + h));
+}
+
+// A link that points to a file (by extension, or because it lives on the file storage host)
 export function looksLikeDownload(url: string): boolean {
-  const clean = url.split('?')[0].toLowerCase();
-  return DOWNLOADABLE_EXTENSIONS.some(ext => clean.endsWith(ext));
+  const clean = url.split('?')[0].split('#')[0].toLowerCase();
+  return DOWNLOADABLE_EXTENSIONS.some(ext => clean.endsWith(ext)) || isFileHostUrl(url);
 }
 
 export function looksLikeVideo(url: string): boolean {

@@ -67,25 +67,9 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false"
-        android:theme="@style/AppTheme"
         android:usesCleartextTraffic="${usesCleartextTraffic}"
-        android:supportsRtl="true">
-
-        <!-- 1. Sets your new custom white notification icon -->
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@drawable/ic_notification" />
-
-        <!-- 2. Sets the background circle color behind your white icon -->
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_color"
-            android:resource="@color/white" />
-
-        <!-- 3. Default Notification Channel configurations -->
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="default"
-            tools:replace="android:value" />
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
 
         <activity
             android:name=".MainActivity"

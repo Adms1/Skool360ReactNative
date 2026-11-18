@@ -25,3 +25,8 @@ cd android
 gradlew assembleRelease
 📁 Skool360Mobile/android/app/build/outputs/apk/release/
 
+<Image
+            source={require('../assets/images/skool360-logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />

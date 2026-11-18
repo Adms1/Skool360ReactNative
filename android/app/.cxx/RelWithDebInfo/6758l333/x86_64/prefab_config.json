@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "prefabPath": "D:\\Gradle\\caches\\modules-2\\files-2.1\\com.google.prefab\\cli\\2.1.0\\aa32fec809c44fa531f01dcfb739b5b3304d3050\\cli-2.1.0-all.jar",
+  "packages": [
+    "D:\\Gradle\\caches\\9.4.1\\transforms\\aebbbb464a9ec0e6db117ca7960348d0\\transformed\\react-android-0.87.0-release\\prefab",
+    "D:\\Gradle\\caches\\9.4.1\\transforms\\9c62773ecf1ba8462dfae62cc584184e\\transformed\\hermes-android-250829098.0.16-release\\prefab",
+    "D:\\Gradle\\caches\\9.4.1\\transforms\\27d21d8b836e42cd3a9b1423640394eb\\transformed\\fbjni-0.7.0\\prefab"
+  ]
+}
