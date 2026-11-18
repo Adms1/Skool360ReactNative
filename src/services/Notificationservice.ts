@@ -5,6 +5,27 @@ import {Alert} from 'react-native';
 const DEFAULT_CHANNEL_ID = 'default';
 let initialized = false;
 
+// Tapping a notification always opens this page (the Messages / Communication page)
+export const COMMUNICATION_URL = 'https://edplex.skool360.com/Communication';
+
+// The page to open once the dashboard has loaded. The WebView screen reads it with consumePendingRedirect().
+let pendingRedirect: {url: string; at: number} | null = null;
+
+function rememberRedirect(data?: Record<string, string>): void {
+  const own = data && typeof data.redirectUrl === 'string' ? data.redirectUrl.trim() : '';
+  pendingRedirect = {url: own || COMMUNICATION_URL, at: Date.now()};
+}
+
+// Returns the page to open (once), or undefined. A tap older than 2 minutes is ignored.
+export function consumePendingRedirect(): string | undefined {
+  const pending = pendingRedirect;
+  pendingRedirect = null;
+  if (!pending || Date.now() - pending.at > 120000) {
+    return undefined;
+  }
+  return pending.url;
+}
+
 export async function removeTokenFromServer(): Promise<void> {
   try {
     const modules = loadPushModules();
@@ -176,7 +197,12 @@ try {
 type NotificationTapHandler = (data: Record<string, string> | undefined) => void;
 
 
-export function initNotifications(onNotificationTap: NotificationTapHandler): () => void {
+export function initNotifications(onNotificationTapped: NotificationTapHandler): () => void {
+  // every kind of tap: remember where to go, then let the app open the dashboard screen
+  const onNotificationTap: NotificationTapHandler = data => {
+    rememberRedirect(data);
+    onNotificationTapped(data);
+  };
 
   const modules = loadPushModules();
   if (!modules) return () => {};

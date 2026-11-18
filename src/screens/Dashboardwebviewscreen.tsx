@@ -24,7 +24,7 @@ import RNFetchBlob from 'react-native-blob-util';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {RootStackParamList} from '../services/Types';
 import {API_CONFIG} from '../services/api';
-import {registerDeviceForPush} from '../services/Notificationservice';
+import {registerDeviceForPush, consumePendingRedirect} from '../services/Notificationservice';
 import {AuthService} from '../services/Authservice';
 import {ToastAndroid} from 'react-native';
 import OfflineView from './OfflineView';
@@ -466,6 +466,7 @@ const onLoginPageReached = (): boolean => {
         reloginTriedRef.current = false;
         loggedOutRef.current = false;
         registerDeviceForPush();
+        goToPendingRedirect();
       }
       setAuthenticating(false);
       setUserOptions(null);
@@ -511,6 +512,7 @@ const handleRetry = () => {
         reloginTriedRef.current = false;
         loggedOutRef.current = false;
         registerDeviceForPush();
+        goToPendingRedirect();
       }
       setAuthenticating(false);
       return;
@@ -636,6 +638,15 @@ const saveBase64File = async (fileName: string, mime: string, data: string) => {
     } catch {
       // ignore non-JSON messages
     }
+  };
+
+  // Open the page a tapped notification points to (only our own / trusted addresses)
+  const goToPendingRedirect = () => {
+    const target = consumePendingRedirect();
+    if (!target || !isTrustedUrl(target) || isLoginPageUrl(target)) {
+      return;
+    }
+    safeInject(`window.location.href = ${JSON.stringify(target)}; true;`, 'notification redirect');
   };
 
   const handleSelectProfile = (index: number) => {
