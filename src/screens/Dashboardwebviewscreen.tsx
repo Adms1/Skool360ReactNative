@@ -47,6 +47,10 @@ interface DownloadState {
 
 const AUTH_TIMEOUT_MS = 15000;
 
+// While testing "file is not saved in the phone's storage": shows what happened to each download.
+// Set to false when it works.
+const DEBUG_DOWNLOAD = false;
+
 const PULL_TRIGGER_DISTANCE = 150;// drag past this to trigger a refresh
 const PULL_MAX_DISTANCE = 150;    // resistance cap while dragging
 const PULL_SETTLE_DISTANCE = 56;  // where the indicator sits while refreshing
@@ -277,6 +281,92 @@ const showToast = (message: string) => {
     }
   };
 
+  // ---- Saving files so that they show up in the phone's "Files" app (Downloads folder) ----
+
+  const debugDownload = (title: string, info: Record<string, unknown>) => {
+    console.log('[DOWNLOAD] ' + title, JSON.stringify(info));
+    if (DEBUG_DOWNLOAD) {
+      Alert.alert('Download: ' + title, JSON.stringify(info, null, 2));
+    }
+  };
+
+  const safeFileName = (name: string) =>
+    String(name || 'download').replace(/[\\/:*?"<>|]/g, '_').trim() || 'download';
+
+  // "report.xlsx" -> "report (1).xlsx" when a file with that name is already in Downloads
+  const uniqueDownloadName = async (fileName: string): Promise<string> => {
+    const {fs} = RNFetchBlob;
+    const dot = fileName.lastIndexOf('.');
+    const base = dot > 0 ? fileName.slice(0, dot) : fileName;
+    const ext = dot > 0 ? fileName.slice(dot) : '';
+    let name = fileName;
+    for (let i = 1; i <= 50; i++) {
+      let taken = false;
+      try {
+        taken = await fs.exists(`${fs.dirs.DownloadDir}/${name}`);
+      } catch {}
+      if (!taken) break;
+      name = `${base} (${i})${ext}`;
+    }
+    return name;
+  };
+
+  // Moves a finished file from the app's private cache into the public Downloads folder.
+  // Android 10+: through MediaStore (the only way the file is listed in the Files app).
+  // Older Android: copy into Downloads and register it.
+  const publishToDownloads = async (cachePath: string, fileName: string, mime: string) => {
+    const {fs} = RNFetchBlob;
+    let publishedHow = 'legacy copy';
+    const type = mime || guessMimeType(fileName);
+
+    if (Platform.OS !== 'android') {
+      const path = `${fs.dirs.DocumentDir}/${fileName}`;
+      await fs.cp(cachePath, path);
+      await RNFetchBlob.ios.previewDocument(path);
+      return;
+    }
+
+    if (Platform.Version >= 29 && RNFetchBlob.MediaCollection?.copyToMediaStore) {
+      await RNFetchBlob.MediaCollection.copyToMediaStore(
+        {name: fileName, parentFolder: '', mimeType: type},
+        'Download',
+        cachePath,
+      );
+      try {
+        await fs.unlink(cachePath);
+      } catch {}
+      publishedHow = 'MediaStore';
+      // best effort: the usual "Download complete" notification (tap = open the file)
+      try {
+        await RNFetchBlob.android.addCompleteDownload({
+          title: fileName,
+          description: 'Downloaded',
+          mime: type,
+          path: `${fs.dirs.DownloadDir}/${fileName}`,
+          showNotification: true,
+        });
+      } catch {}
+      debugDownload('saved (' + publishedHow + ')', {api: Platform.Version, file: fileName, folder: 'Downloads'});
+      return;
+    }
+
+    const finalName = await uniqueDownloadName(fileName);
+    const path = `${fs.dirs.DownloadDir}/${finalName}`;
+    await fs.cp(cachePath, path);
+    try {
+      await fs.unlink(cachePath);
+    } catch {}
+    await fs.scanFile([{path, mime: type}]);
+    await RNFetchBlob.android.addCompleteDownload({
+      title: finalName,
+      description: 'Downloaded',
+      mime: type,
+      path,
+      showNotification: true,
+    });
+    debugDownload('saved (' + publishedHow + ')', {api: Platform.Version, file: finalName, path});
+  };
+
   const downloadFile = async (url: string, nameHint?: string) => {
     if (!url) return;
 
@@ -290,28 +380,63 @@ const showToast = (message: string) => {
     const mimeType = guessMimeType(fileName);
 
    if (Platform.OS === 'android') {
-     try {
-       const RNFetchBlob = require('react-native-blob-util').default;
-       const path = `${RNFetchBlob.fs.dirs.DownloadDir}/${fileName}`;
-       const {config} = RNFetchBlob;
+     const {fs} = RNFetchBlob;
+     const name = safeFileName(fileName);
+     showToast('Downloading...');
 
-       showToast('Downloading...');
-       await RNFetchBlob.config({path}).fetch('GET', url);
-       await RNFetchBlob.fs.scanFile([{path, mime: mimeType}]);
-       await config({
-                 addAndroidDownloads: {
-                   useDownloadManager: true,
-                   notification: true,   // this alone produces the screenshot's popup — nothing else needed
-                   title: fileName,
-                   description: 'Downloading file',
-                   mime: mimeType,
-                   mediaScannable: true,
-                   path: `${RNFetchBlob.fs.dirs.DownloadDir}/${fileName}`,
-                 },
-               }).fetch('GET', url);
+     // 1) Android 10+: download into the app's cache, then publish through MediaStore.
+     //    This is the way that makes the file appear in the Files app (Downloads folder).
+     if (Platform.Version >= 29 && RNFetchBlob.MediaCollection?.copyToMediaStore) {
+       const cachePath = `${fs.dirs.CacheDir}/${Date.now()}_${name}`;
+       try {
+         const res = await RNFetchBlob.config({path: cachePath}).fetch('GET', url);
+         const status = res.info().status;
+         if (status < 200 || status >= 300) {
+           throw new Error('HTTP ' + status);
+         }
+         await publishToDownloads(cachePath, name, mimeType);
+         showToast('Saved to Downloads');
+         return;
+       } catch (e: any) {
+         debugDownload('MediaStore save failed, trying the download manager', {
+           api: Platform.Version,
+           error: String(e?.message ?? e),
+         });
+         try {
+           await fs.unlink(cachePath);
+         } catch {}
+       }
+     } else {
+       debugDownload('MediaStore not available, using the download manager', {
+         api: Platform.Version,
+         mediaCollection: !!RNFetchBlob.MediaCollection,
+       });
+     }
+
+     // 2) the system download manager, straight into the public Downloads folder
+     try {
+       const finalName = await uniqueDownloadName(name);
+       const target = `${fs.dirs.DownloadDir}/${finalName}`;
+       const res = await RNFetchBlob.config({
+         addAndroidDownloads: {
+           useDownloadManager: true,
+           notification: true,
+           title: finalName,
+           description: 'Downloading file',
+           mime: mimeType,
+           mediaScannable: true,
+           path: target,
+         },
+       }).fetch('GET', url);
        showToast('Downloaded');
-     } catch (error) {
+       debugDownload('saved (download manager)', {
+         api: Platform.Version,
+         target,
+         reportedPath: typeof res?.path === 'function' ? res.path() : undefined,
+       });
+     } catch (error: any) {
        showToast('Download failed');
+       debugDownload('FAILED', {api: Platform.Version, error: String(error?.message ?? error)});
      }
      return;
    }
@@ -523,6 +648,7 @@ const handleRetry = () => {
       safeInject(() => buildLoginInjection(username, password), 'buildLoginInjection');
     }
   };
+// A file that arrives from the page as one base64 string
 const saveBase64File = async (fileName: string, mime: string, data: string) => {
   const granted = await requestStoragePermissionIfNeeded();
   if (!granted) {
@@ -531,26 +657,91 @@ const saveBase64File = async (fileName: string, mime: string, data: string) => {
   }
   try {
     const {fs} = RNFetchBlob;
-  if (Platform.OS === 'android') {
-    const path = `${fs.dirs.DownloadDir}/${fileName}`;
+    const name = safeFileName(fileName);
+    const cachePath = `${fs.dirs.CacheDir}/${Date.now()}_${name}`;
     showToast('Downloading...');
-    await fs.writeFile(path, data, 'base64');
-    await RNFetchBlob.android.addCompleteDownload({
-      title: fileName,
-      description: 'Downloaded',
-      mime: mime || guessMimeType(fileName),
-      path,
-      showNotification: true,
-    });
+    await fs.writeFile(cachePath, data, 'base64');
+    await publishToDownloads(cachePath, name, mime);
     showToast('Downloaded');
-  } else {
-      const path = `${fs.dirs.DocumentDir}/${fileName}`;
-      await fs.writeFile(path, data, 'base64');
-      await RNFetchBlob.ios.previewDocument(path);
-    }
   } catch {
     Alert.alert('Download failed', 'Could not save this file. Please try again.');
   }
+};
+
+// A file that arrives from the page in small pieces (FILE_START / FILE_CHUNK / FILE_END)
+const fileJobRef = useRef<{
+  id: string;
+  cachePath: string;
+  fileName: string;
+  mime: string;
+  started: boolean;
+  failed: boolean;
+  chain: Promise<void>;
+} | null>(null);
+
+const failFileJob = (job: {failed: boolean}, message: string) => {
+  if (job.failed) return;
+  job.failed = true;
+  Alert.alert('Download failed', message);
+};
+
+const startFileJob = (p: any) => {
+  const {fs} = RNFetchBlob;
+  const fileName = safeFileName(p.fileName || 'export.xlsx');
+  const job = {
+    id: String(p.id),
+    fileName,
+    mime: String(p.mime || ''),
+    cachePath: `${fs.dirs.CacheDir}/${Date.now()}_${fileName}`,
+    started: false,
+    failed: false,
+    chain: Promise.resolve(),
+  };
+  fileJobRef.current = job;
+  job.chain = requestStoragePermissionIfNeeded().then(granted => {
+    if (!granted) {
+      failFileJob(job, 'Storage permission is needed to save the file.');
+    }
+  });
+};
+
+const appendFileChunk = (p: any) => {
+  const job = fileJobRef.current;
+  if (!job || job.id !== String(p.id)) return;
+  job.chain = job.chain.then(async () => {
+    if (job.failed) return;
+    try {
+      const {fs} = RNFetchBlob;
+      if (!job.started) {
+        job.started = true;
+        await fs.writeFile(job.cachePath, p.data, 'base64');
+      } else {
+        await fs.appendFile(job.cachePath, p.data, 'base64');
+      }
+    } catch {
+      failFileJob(job, 'Could not save this file. Please try again.');
+    }
+  });
+};
+
+const finishFileJob = (p: any) => {
+  const job = fileJobRef.current;
+  if (!job || job.id !== String(p.id)) return;
+  job.chain = job.chain.then(async () => {
+    if (job.failed) return;
+    try {
+      const {fs} = RNFetchBlob;
+      if (!job.started) {
+        await fs.writeFile(job.cachePath, '', 'utf8'); // empty file
+      }
+      await publishToDownloads(job.cachePath, job.fileName, job.mime);
+      showToast('Downloaded');
+    } catch {
+      failFileJob(job, 'Could not save this file. Please try again.');
+    } finally {
+      if (fileJobRef.current === job) fileJobRef.current = null;
+    }
+  });
 };
   const handleMessage = (event: any) => {
     try {
@@ -581,6 +772,29 @@ const saveBase64File = async (fileName: string, mime: string, data: string) => {
       }
   if (payload?.type === 'FILE_BASE64') {
     saveBase64File(payload.fileName, payload.mime, payload.data);
+    return;
+  }
+  if (payload?.type === 'EXPORT_START') {
+    showToast('Preparing your file...');
+    return;
+  }
+  if (payload?.type === 'EXPORT_END') {
+    return; // the page handled it itself (not a file)
+  }
+  if (payload?.type === 'EXPORT_ERROR') {
+    Alert.alert('Export failed', 'Could not prepare the file. Please try again.');
+    return;
+  }
+  if (payload?.type === 'FILE_START') {
+    startFileJob(payload);
+    return;
+  }
+  if (payload?.type === 'FILE_CHUNK') {
+    appendFileChunk(payload);
+    return;
+  }
+  if (payload?.type === 'FILE_END') {
+    finishFileJob(payload);
     return;
   }
       if (payload?.type === 'SELECT_USER_OPTIONS') {
