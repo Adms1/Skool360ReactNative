@@ -1,8 +1,9 @@
 import {Platform, PermissionsAndroid} from 'react-native';
 import {buildDeviceTokenUrl,buildDeviceTokenRemoveUrl} from './api';
 import {AuthService} from './Authservice';
-import {Alert} from 'react-native';
 const DEFAULT_CHANNEL_ID = 'default';
+
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 let initialized = false;
 
 // Tapping a notification always opens this page (the Messages / Communication page)
@@ -27,6 +28,7 @@ export function consumePendingRedirect(): string | undefined {
 }
 
 export async function removeTokenFromServer(): Promise<void> {
+  sentForUserId = null; // after logout the next login must register the token again
   try {
     const modules = loadPushModules();
     if (!modules) return;
@@ -62,6 +64,7 @@ function loadPushModules() {
       onNotificationOpenedApp,
       onTokenRefresh,
       getInitialNotification,
+      getAPNSToken,
     } = messagingModule;
 
     return {
@@ -72,6 +75,7 @@ function loadPushModules() {
       onNotificationOpenedApp,
       onTokenRefresh,
       getInitialNotification,
+      getAPNSToken,
       notifee,
       AndroidImportance,
       EventType,
@@ -116,41 +120,98 @@ export async function requestNotificationPermission(): Promise<boolean> {
   }
 }
 
-export async function sendTokenToServer(fcmToken: string): Promise<void> {
+// On iOS the FCM token only exists after Apple has handed the app its APNs token, which can take a few
+// seconds after start-up. Asking too early fails, so ask again a few times.
+async function getFcmTokenWithRetry(modules: any): Promise<string> {
+  const attempts = Platform.OS === 'ios' ? 10 : 1;
+  let lastError: any = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      if (Platform.OS === 'ios' && typeof modules.getAPNSToken === 'function') {
+        const apns = await modules.getAPNSToken(modules.messagingInstance);
+        if (!apns) {
+          throw new Error('APNs token not available yet');
+        }
+      }
+      const token = await modules.getToken(modules.messagingInstance);
+      if (token) {
+        return token;
+      }
+      throw new Error('empty FCM token');
+    } catch (e: any) {
+      lastError = e;
+      await sleep(1500);
+    }
+  }
+  throw lastError ?? new Error('could not get the FCM token');
+}
+
+export async function sendTokenToServer(fcmToken: string): Promise<boolean> {
   try {
     const session = await AuthService.getSession();
-
     if (!session || !session.user?.userid) {
-      return;
+      return false;
     }
 
-    const platform = Platform.OS ===
-    'ios' ? 'ios' : 'android';
+    const platform = Platform.OS === 'ios' ? 'ios' : 'android';
     const url = buildDeviceTokenUrl(platform, fcmToken, session.user.userid);
 
     const response = await fetch(url, {method: 'POST'});
-
     const responseText = await response.text();
 
+    // the server answers 200 even when it refuses ("Authentication fail"), so look at the text as well
+    return response.ok && !/fail|error|invalid/i.test(responseText);
   } catch (err) {
+    return false;
   }
 }
-let registering = false;
-export async function registerDeviceForPush(): Promise<void> {
+// registerDeviceForPush() is called from several places (app start, and every time the dashboard loads).
+// Running it twice at the same moment makes iOS fail with "[messaging/registration-superseded]", so:
+//  - calls made while one is already running share that run,
+//  - Apple registration is done once per app run,
+//  - a user whose token was already sent is not sent again.
+let registrationInFlight: Promise<void> | null = null;
+let remoteRegistered = false;
+let sentForUserId: string | null = null;
+
+export function registerDeviceForPush(): Promise<void> {
+  if (!registrationInFlight) {
+    registrationInFlight = doRegisterDeviceForPush().finally(() => {
+      registrationInFlight = null;
+    });
+  }
+  return registrationInFlight;
+}
+
+async function doRegisterDeviceForPush(): Promise<void> {
   const modules = loadPushModules();
   if (!modules) return;
 
   try {
     const granted = await requestNotificationPermission();
-    if (!granted) return;
+    if (!granted) {
+      return;
+    }
 
     await ensureAndroidChannel();
 
-    await modules.registerDeviceForRemoteMessages(modules.messagingInstance);
+    const session = await AuthService.getSession();
+    const userId: string | null = session?.user?.userid ?? null;
+    if (userId && sentForUserId === userId) {
+      return; // this user's token is already on the server
+    }
 
-    const fcmToken = await modules.getToken(modules.messagingInstance);
+    if (!remoteRegistered) {
+      await modules.registerDeviceForRemoteMessages(modules.messagingInstance);
+      remoteRegistered = true;
+    }
 
-    await sendTokenToServer(fcmToken);
+    const fcmToken = await getFcmTokenWithRetry(modules);
+
+    const sent = await sendTokenToServer(fcmToken);
+    if (sent && userId) {
+      sentForUserId = userId;
+    }
   } catch (e: any) {
     console.warn('registerDeviceForPush error', e?.message ?? e);
   }

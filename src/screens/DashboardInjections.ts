@@ -810,3 +810,47 @@ export const PULL_GUARD_INJECTION = `
        })();
        true;
        `;
+
+// iOS: swipe in from the left edge = back, swipe in from the right edge = forward.
+// (The system gesture is switched off in the WebView, because this one works the same on every page.)
+export const IOS_EDGE_SWIPE_INJECTION = `
+(function () {
+  if (window.__edgeSwipeInstalled) return;
+  window.__edgeSwipeInstalled = true;
+
+  var EDGE = 28;        // px from the screen edge where a swipe may start
+  var MIN_DX = 70;      // px it must travel sideways
+  var MAX_DY = 60;      // px it may drift up/down
+  var MAX_MS = 700;
+  var t0 = null;
+
+  function post(type) {
+    try { window.ReactNativeWebView.postMessage(JSON.stringify({type: type})); } catch (e) {}
+  }
+
+  document.addEventListener('touchstart', function (e) {
+    t0 = null;
+    if (!e.touches || e.touches.length !== 1) return;
+    var t = e.touches[0];
+    var w = window.innerWidth;
+    if (t.clientX <= EDGE) t0 = {x: t.clientX, y: t.clientY, at: Date.now(), dir: 'back'};
+    else if (t.clientX >= w - EDGE) t0 = {x: t.clientX, y: t.clientY, at: Date.now(), dir: 'forward'};
+  }, {capture: true, passive: true});
+
+  document.addEventListener('touchend', function (e) {
+    if (!t0) return;
+    var s = t0;
+    t0 = null;
+    var t = e.changedTouches && e.changedTouches[0];
+    if (!t || Date.now() - s.at > MAX_MS) return;
+    var dx = t.clientX - s.x;
+    var dy = Math.abs(t.clientY - s.y);
+    if (dy > MAX_DY) return;
+    if (s.dir === 'back' && dx >= MIN_DX) post('SWIPE_BACK');
+    if (s.dir === 'forward' && dx <= -MIN_DX) post('SWIPE_FORWARD');
+  }, {capture: true, passive: true});
+
+  document.addEventListener('touchcancel', function () { t0 = null; }, {capture: true, passive: true});
+})();
+true;
+`;

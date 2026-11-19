@@ -6,14 +6,17 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   Alert,
   Image,
   Keyboard,
   Animated,
+  useWindowDimensions,
 } from 'react-native';
+import Svg, {Path} from 'react-native-svg';
+import SystemNavigationBar from 'react-native-system-navigation-bar';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '../services/Types';
 import {AuthService} from '../services/Authservice';
@@ -24,17 +27,49 @@ interface Props {
   navigation: LoginScreenNavProp;
 }
 
+// Material "visibility" / "visibility_off" icons (blue, like the reference)
+const EYE_OPEN =
+  'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z';
+const EYE_OFF =
+  'M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z';
+
 const LoginScreen: React.FC<Props> = ({navigation}) => {
+  // Card proportions measured from the reference screenshot:
+  // card = 88% of the screen width (about 6% margin each side), side padding = 8.3% of the card
+  const {width: screenWidth} = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const cardWidth = Math.min(screenWidth * 0.883, 460);
+  const cardPadding = cardWidth * 0.083;
+
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // iOS: height of the keyboard while it is open. The form is centred in the space ABOVE the keyboard,
+  // so it moves up instead of staying behind it (and scrolls when the screen is too small).
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    const show = Keyboard.addListener('keyboardWillShow', e => {
+      setKeyboardHeight(Math.max(0, e.endCoordinates.height - insets.bottom));
+      setTimeout(() => scrollRef.current?.scrollToEnd({animated: true}), 60);
+    });
+    const hide = Keyboard.addListener('keyboardWillHide', () => setKeyboardHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [insets.bottom]);
 
   const [toastMsg, setToastMsg] = useState('');
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    SystemNavigationBar.setNavigationColor('#d5e1f9', 'dark', 'navigation');
     return () => {
       if (toastTimer.current) clearTimeout(toastTimer.current);
     };
@@ -89,18 +124,27 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={styles.flex}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        ref={scrollRef}
+        contentContainerStyle={[styles.scrollContent, {paddingBottom: 24 + keyboardHeight}]}
         keyboardShouldPersistTaps="handled">
-        <View style={styles.card}>
+        <View
+          style={[
+            styles.card,
+            {
+              width: cardWidth,
+              paddingHorizontal: cardPadding,
+              paddingTop: cardWidth * 0.105,
+              paddingBottom: cardPadding,
+            },
+          ]}>
           <Image
             source={require('../assets/images/skool360-logo.png')}
             style={styles.logo}
             resizeMode="contain"
           />
+
           <Text allowFontScaling={false} style={styles.label}>
             UserID
           </Text>
@@ -112,7 +156,7 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
             autoCapitalize="none"
             autoCorrect={false}
             placeholder="Enter UserID"
-            placeholderTextColor="#b5b9c2"
+            placeholderTextColor="#c4c7cc"
           />
 
           <Text allowFontScaling={false} style={styles.label}>
@@ -123,19 +167,20 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
               allowFontScaling={false}
               style={styles.passwordInput}
               value={password}
-              onChangeText={setPassword}
+              onChangeText={text => setPassword(text.replace(/\s/g, ''))} // spaces are not allowed in the password
               secureTextEntry={!showPassword}
               autoCapitalize="none"
               autoCorrect={false}
               placeholder="Enter Password"
-              placeholderTextColor="#b5b9c2"
+              placeholderTextColor="#c4c7cc"
             />
             <TouchableOpacity
               onPress={() => setShowPassword(prev => !prev)}
-              style={styles.eyeButton}>
-              <Text allowFontScaling={false} style={styles.eyeText}>
-                {showPassword ? 'Hide' : 'Show'}
-              </Text>
+              style={styles.eyeButton}
+              hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+              <Svg width={22} height={22} viewBox="0 0 24 24">
+                <Path d={showPassword ? EYE_OPEN : EYE_OFF} fill={BLUE} />
+              </Svg>
             </TouchableOpacity>
           </View>
 
@@ -154,6 +199,9 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
         </View>
       </ScrollView>
 
+      {/* our own strip behind the Android navigation bar (same colour as the dashboard) */}
+      <View style={{height: insets.bottom, backgroundColor: '#d5e1f9'}} />
+
       <Animated.View
         pointerEvents="none"
         style={[styles.toast, {opacity: toastOpacity}]}>
@@ -161,13 +209,12 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
           {toastMsg}
         </Text>
       </Animated.View>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const BLUE = '#3b82f6';
-const NAVY = '#1e3a8a';
-const BORDER = '#cfd4dc';
+const BORDER = '#d0d3d9';
 
 const styles = StyleSheet.create({
   flex: {
@@ -182,72 +229,55 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   card: {
-    width: '100%',
     backgroundColor: '#ffffff',
     borderRadius: 4,
-    paddingHorizontal: 30,
-    paddingTop: 30,
-    paddingBottom: 28,
   },
   logo: {
-     width:  220,
-     height: 70,
-      alignSelf: 'center',
-     marginBottom: 32,
-   },
-  orgName: {
+    width: '72%',
+    aspectRatio: 4.2,
     alignSelf: 'center',
-    marginTop: 10,
     marginBottom: 24,
-    fontSize: 22,
-    color: '#1b5e3b',
-    fontFamily: Platform.select({ios: 'Georgia', android: 'serif'}),
   },
   label: {
     fontSize: 16,
-    color: '#111',
-    marginBottom: 6,
+    color: '#111111',
+    marginBottom: 4,
   },
   input: {
-    height: 46,
-    backgroundColor: '#fff',
+    height: 38,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: BORDER,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    fontSize: 15,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    fontSize: 16,
     color: '#1c1c1c',
     marginBottom: 14,
   },
   passwordRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 46,
-    backgroundColor: '#fff',
+    height: 40,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: BORDER,
-    borderRadius: 6,
-    marginBottom: 18,
+    borderRadius: 4,
+    marginBottom: 26,
   },
   passwordInput: {
     flex: 1,
     height: '100%',
-    paddingHorizontal: 10,
-    fontSize: 15,
+    paddingHorizontal: 8,
+    fontSize: 16,
     color: '#1c1c1c',
   },
   eyeButton: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  eyeText: {
-    color: NAVY,
-    fontSize: 12,
-    fontWeight: '600',
-  },
   loginButton: {
-    height: 46,
+    height: 42,
     backgroundColor: BLUE,
     borderRadius: 4,
     alignItems: 'center',
@@ -257,22 +287,10 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   loginButtonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  poweredBy: {
-    alignSelf: 'center',
-    marginTop: 22,
-    fontSize: 12,
-    color: '#8a8f98',
-  },
-  bottomLogo: {
-    width: 140,
-    height: 40,
-    alignSelf: 'center',
-    marginTop: 4,
+    fontWeight: '700',
+    letterSpacing: 1.2,
   },
   toast: {
     position: 'absolute',

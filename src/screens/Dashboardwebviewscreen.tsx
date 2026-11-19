@@ -79,6 +79,7 @@ import {
   IOS_FAST_TAP_INJECTION,
   EXPORT_INTERCEPT_INJECTION,
   FILE_LINK_INJECTION,
+  IOS_EDGE_SWIPE_INJECTION,
 } from './DashboardInjections';
 // Blocks pinch-zoom and double-tap zoom inside the page (runs before the page loads and again after)
 const NO_ZOOM_INJECTION = `
@@ -192,6 +193,7 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
     webViewRef.current?.injectJavaScript(code);
   };
   const canGoBackRef = useRef(false);
+  const canGoForwardRef = useRef(false);
   const reachedDashboardRef = useRef(false);
   const attemptedAutoLoginRef = useRef(false);
   const loggedOutRef = useRef(false);
@@ -216,11 +218,7 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const currentUrlRef = useRef(API_CONFIG.DASHBOARD_URL);
   const [isOnDashboard, setIsOnDashboard] = useState(false);
-  const logoPulse = useRef(new Animated.Value(1)).current;
-  const splashFade = useRef(new Animated.Value(0)).current;
-  const dot1 = useRef(new Animated.Value(0)).current;
-  const dot2 = useRef(new Animated.Value(0)).current;
-  const dot3 = useRef(new Animated.Value(0)).current;
+  const skeletonPulse = useRef(new Animated.Value(0.45)).current;
   const showSplash = authenticating && !userOptions;
   const springTo = (toValue: number) => {
     Animated.spring(pullAnim, {toValue, useNativeDriver: true, friction: 8}).start();
@@ -264,11 +262,30 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
       }
     }
   };
-const showToast = (message: string) => {
+// Small message for the user. Android: the system toast. iOS has none, so a pill is drawn at the bottom.
+// "busy" keeps it (with a spinner) until hideToast() is called - used while a file is being fetched.
+const [toastInfo, setToastInfo] = useState<{text: string; busy: boolean} | null>(null);
+const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+const hideToast = () => {
+  if (toastTimerRef.current) {
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = null;
+  }
+  setToastInfo(null);
+};
+const showToast = (message: string, busy: boolean = false) => {
   if (Platform.OS === 'android') {
     ToastAndroid.show(message, ToastAndroid.SHORT);
+    return;
   }
+  if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+  setToastInfo({text: message, busy});
+  // a busy message is removed by the code that finishes the job; this is only a safety net
+  toastTimerRef.current = setTimeout(() => setToastInfo(null), busy ? 60000 : 2500);
 };
+useEffect(() => () => {
+  if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+}, []);
   const requestStoragePermissionIfNeeded = async (): Promise<boolean> => {
     if (Platform.OS !== 'android' || Platform.Version >= 29) return true;
     try {
@@ -322,6 +339,7 @@ const showToast = (message: string) => {
     if (Platform.OS !== 'android') {
       const path = `${fs.dirs.DocumentDir}/${fileName}`;
       await fs.cp(cachePath, path);
+      hideToast();
       await RNFetchBlob.ios.previewDocument(path);
       return;
     }
@@ -367,7 +385,7 @@ const showToast = (message: string) => {
     debugDownload('saved (' + publishedHow + ')', {api: Platform.Version, file: finalName, path});
   };
 
-  const downloadFile = async (url: string, nameHint?: string) => {
+  const downloadFileNow = async (url: string, nameHint?: string) => {
     if (!url) return;
 
     const granted = await requestStoragePermissionIfNeeded();
@@ -442,23 +460,38 @@ const showToast = (message: string) => {
    }
 
     // iOS — no system "download manager" exists; Quick Look is the native equivalent.
+    // The system sheet (Copy / Quick Look / Save to Files) only appears once the file is here, so show a
+    // message right away, otherwise the user thinks nothing happened and taps again.
+    showToast('Downloading...', true);
     try {
-      const RNFetchBlob = require('react-native-blob-util').default;
       const {fs} = RNFetchBlob;
+      const filePath = `${fs.dirs.DocumentDir}/${safeFileName(fileName)}`;
 
-      const res = await RNFetchBlob.fetch('GET', url);
-      if (res.info().status !== 200) {
-        throw new Error(`HTTP ${res.info().status}`);
+      // straight into a file (no big base64 string in memory)
+      const res = await RNFetchBlob.config({path: filePath}).fetch('GET', url);
+      const status = res.info().status;
+      if (status < 200 || status >= 300) {
+        throw new Error(`HTTP ${status}`);
       }
 
-      const base64 = res.base64();
-      const filePath = `${fs.dirs.DocumentDir}/${fileName}`;
-      await fs.writeFile(filePath, base64, 'base64');
-
+      hideToast();
       await RNFetchBlob.ios.previewDocument(filePath);
     } catch (error) {
+      hideToast();
       // Only remaining UI on iOS: a native system alert, only on real failure.
       Alert.alert('Download failed', 'Could not download this file. Please try again.');
+    }
+  };
+
+  // The same file tapped again while it is still downloading is ignored (no duplicate downloads)
+  const downloadsInFlightRef = useRef<Set<string>>(new Set());
+  const downloadFile = async (url: string, nameHint?: string) => {
+    if (!url || downloadsInFlightRef.current.has(url)) return;
+    downloadsInFlightRef.current.add(url);
+    try {
+      await downloadFileNow(url, nameHint);
+    } finally {
+      downloadsInFlightRef.current.delete(url);
     }
   };
   useEffect(() => {
@@ -487,69 +520,18 @@ useEffect(() => {
     });
     return () => subscription.remove();
   }, [videoUrl]);
+ // Skeleton placeholder: the grey blocks softly fade in and out while the dashboard is loading
  useEffect(() => {
    if (!showSplash) return;
-
-   splashFade.setValue(0);
-
-   Animated.timing(splashFade, {
-     toValue: 1,
-     duration: 250,
-     useNativeDriver: true,
-   }).start();
-
-   const pulseLoop = Animated.loop(
+   const loop = Animated.loop(
      Animated.sequence([
-       Animated.timing(logoPulse, {
-         toValue: 1.08,
-         duration: 900,
-         useNativeDriver: true,
-       }),
-       Animated.timing(logoPulse, {
-         toValue: 1,
-         duration: 900,
-         useNativeDriver: true,
-       }),
+       Animated.timing(skeletonPulse, {toValue: 1, duration: 750, useNativeDriver: true}),
+       Animated.timing(skeletonPulse, {toValue: 0.45, duration: 750, useNativeDriver: true}),
      ]),
    );
-
-   pulseLoop.start();
-
-   const createDotAnimation = (
-     value: Animated.Value,
-     delay: number,
-   ) =>
-     Animated.loop(
-       Animated.sequence([
-         Animated.timing(value, {
-           toValue: 1,
-           duration: 350,
-           delay,
-           useNativeDriver: true,
-         }),
-         Animated.timing(value, {
-           toValue: 0,
-           duration: 350,
-           useNativeDriver: true,
-         }),
-       ]),
-     );
-
-   const d1 = createDotAnimation(dot1, 0);
-   const d2 = createDotAnimation(dot2, 150);
-   const d3 = createDotAnimation(dot3, 300);
-
-   d1.start();
-   d2.start();
-   d3.start();
-
-   return () => {
-     pulseLoop.stop();
-     d1.stop();
-     d2.stop();
-     d3.stop();
-   };
- }, [showSplash]);
+   loop.start();
+   return () => loop.stop();
+ }, [showSplash, skeletonPulse]);
 const redirectToLogin = () => {
   if (loggedOutRef.current) return;
   loggedOutRef.current = true;
@@ -582,6 +564,7 @@ const onLoginPageReached = (): boolean => {
 };
   const handleNavStateChange = (navState: WebViewNavigation) => {
      canGoBackRef.current = navState.canGoBack;
+     canGoForwardRef.current = !!navState.canGoForward;
       currentUrlRef.current = navState.url;
       setIsOnDashboard(navState.url.includes('/Dashboard'));
     if (navState.url.includes('/Dashboard') && !navState.loading) {
@@ -628,6 +611,9 @@ const handleRetry = () => {
     safeInject(IOS_FAST_TAP_INJECTION, 'IOS_FAST_TAP_INJECTION');
       safeInject(EXPORT_INTERCEPT_INJECTION, 'EXPORT_INTERCEPT_INJECTION');
     safeInject(FILE_LINK_INJECTION, 'FILE_LINK_INJECTION');
+    if (Platform.OS === 'ios') {
+      safeInject(IOS_EDGE_SWIPE_INJECTION, 'IOS_EDGE_SWIPE_INJECTION');
+    }
     const loadedUrl: string = event?.nativeEvent?.url ?? '';
     const onDashboard = reachedDashboardRef.current || loadedUrl.includes('/Dashboard');
     if (onDashboard) {
@@ -664,6 +650,7 @@ const saveBase64File = async (fileName: string, mime: string, data: string) => {
     await publishToDownloads(cachePath, name, mime);
     showToast('Downloaded');
   } catch {
+    hideToast();
     Alert.alert('Download failed', 'Could not save this file. Please try again.');
   }
 };
@@ -682,6 +669,7 @@ const fileJobRef = useRef<{
 const failFileJob = (job: {failed: boolean}, message: string) => {
   if (job.failed) return;
   job.failed = true;
+  hideToast();
   Alert.alert('Download failed', message);
 };
 
@@ -770,18 +758,34 @@ const finishFileJob = (p: any) => {
         }
         return;
       }
+  if (payload?.type === 'SWIPE_BACK') {
+    if (videoUrl) {
+      setVideoUrl(null);
+    } else if (canGoBackRef.current && !currentUrlRef.current?.includes('/Dashboard')) {
+      webViewRef.current?.goBack();
+    }
+    return;
+  }
+  if (payload?.type === 'SWIPE_FORWARD') {
+    if (canGoForwardRef.current) {
+      webViewRef.current?.goForward();
+    }
+    return;
+  }
   if (payload?.type === 'FILE_BASE64') {
     saveBase64File(payload.fileName, payload.mime, payload.data);
     return;
   }
   if (payload?.type === 'EXPORT_START') {
-    showToast('Preparing your file...');
+    showToast('Preparing your file...', true);
     return;
   }
   if (payload?.type === 'EXPORT_END') {
+    hideToast();
     return; // the page handled it itself (not a file)
   }
   if (payload?.type === 'EXPORT_ERROR') {
+    hideToast();
     Alert.alert('Export failed', 'Could not prepare the file. Please try again.');
     return;
   }
@@ -977,7 +981,7 @@ const finishFileJob = (p: any) => {
         setBuiltInZoomControls={false}
         setDisplayZoomControls={false}
         injectedJavaScriptBeforeContentLoaded={NO_ZOOM_INJECTION}
-        allowsBackForwardNavigationGestures={!isOnDashboard}
+        allowsBackForwardNavigationGestures={false}
         originWhitelist={['*']}
         onNavigationStateChange={handleNavStateChange}
         onLoadEnd={handleLoadEnd}
@@ -1025,46 +1029,26 @@ const finishFileJob = (p: any) => {
               <View style={{height: insets.bottom, backgroundColor: '#d5e1f9'}} />
             )}
         {showSplash && (
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.splashOverlay,
-              {opacity: splashFade},
-            ]}>
-          <Image
-               source={require('../assets/images/skool360-logo.png')}
-                style={styles.orgName}
-               resizeMode="contain"
-             />
-            <Text allowFontScaling={false} style={styles.splashTitle}>
-              Getting things ready
-            </Text>
-
-            <View style={styles.dotsRow}>
-              {[dot1, dot2, dot3].map((dot, index) => (
-                <Animated.View
-                  key={index}
-                  style={[
-                    styles.dot,
-                    {
-                      opacity: dot.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.3, 1],
-                      }),
-                      transform: [
-                        {
-                          translateY: dot.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0, -6],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                />
-              ))}
-            </View>
-          </Animated.View>
+          <View pointerEvents="none" style={styles.skeletonScreen}>
+            <Animated.View style={{opacity: skeletonPulse}}>
+              <View style={styles.skeletonHeader}>
+                <View style={styles.skeletonHeaderIcon} />
+                <View style={styles.skeletonYearPill} />
+                <View style={styles.skeletonHeaderSpacer} />
+                <View style={styles.skeletonHeaderIcon} />
+                <View style={styles.skeletonHeaderIcon} />
+                <View style={styles.skeletonHeaderIcon} />
+              </View>
+              <View style={styles.skeletonGrid}>
+                {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
+                  <View key={i} style={styles.skeletonTile}>
+                    <View style={styles.skeletonTileIcon} />
+                    <View style={styles.skeletonTileLine} />
+                  </View>
+                ))}
+              </View>
+            </Animated.View>
+          </View>
         )}
     {!!loadError && <OfflineView title={loadError} onRetry={handleRetry} />}
       {!hideWebView && (
@@ -1167,6 +1151,15 @@ const finishFileJob = (p: any) => {
           )}
         </View>
       </Modal>
+
+      {toastInfo && (
+        <View pointerEvents="none" style={styles.toastWrap}>
+          <View style={styles.toastPill}>
+            {toastInfo.busy && <ActivityIndicator size="small" color="#ffffff" style={{marginRight: 10}} />}
+            <Text allowFontScaling={false} style={styles.toastText}>{toastInfo.text}</Text>
+          </View>
+        </View>
+      )}
 
       {errorMsg && (
         <View style={styles.errorBanner}>
@@ -1357,6 +1350,88 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
   },
+skeletonScreen: {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: '#f2f5fb',
+  zIndex: 50,
+},
+skeletonHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  height: 60,
+  paddingHorizontal: 16,
+  backgroundColor: BLUE,
+},
+skeletonHeaderIcon: {
+  width: 32,
+  height: 32,
+  borderRadius: 16,
+  marginRight: 12,
+  backgroundColor: 'rgba(255,255,255,0.35)',
+},
+skeletonYearPill: {
+  width: 92,
+  height: 30,
+  borderRadius: 10,
+  backgroundColor: 'rgba(255,255,255,0.35)',
+},
+skeletonHeaderSpacer: {
+  flex: 1,
+},
+skeletonGrid: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  justifyContent: 'space-between',
+  paddingHorizontal: 16,
+  paddingTop: 16,
+},
+skeletonTile: {
+  width: '48%',
+  height: 118,
+  borderRadius: 14,
+  marginBottom: 14,
+  padding: 16,
+  justifyContent: 'flex-end',
+  backgroundColor: '#dde3f0',
+},
+skeletonTileIcon: {
+  width: 36,
+  height: 36,
+  borderRadius: 18,
+  marginBottom: 12,
+  backgroundColor: '#cbd3e6',
+},
+skeletonTileLine: {
+  width: '70%',
+  height: 12,
+  borderRadius: 6,
+  backgroundColor: '#cbd3e6',
+},
+toastWrap: {
+  position: 'absolute',
+  left: 0,
+  right: 0,
+  bottom: 40,
+  alignItems: 'center',
+  zIndex: 100,
+},
+toastPill: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: 18,
+  paddingVertical: 11,
+  borderRadius: 22,
+  backgroundColor: 'rgba(23,26,38,0.92)',
+},
+toastText: {
+  color: '#ffffff',
+  fontSize: 14,
+  fontWeight: '600',
+},
 splashOverlay: {
   position: 'absolute',
   top: 0,
