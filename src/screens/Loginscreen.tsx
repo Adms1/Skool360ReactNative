@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Platform,
-  ScrollView,
   Alert,
   Image,
   Keyboard,
@@ -20,6 +19,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootStackParamList} from '../services/Types';
 import {AuthService} from '../services/Authservice';
+import DashboardSkeleton from './DashboardSkeleton';
 
 type LoginScreenNavProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -45,24 +45,6 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // iOS: height of the keyboard while it is open. The form is centred in the space ABOVE the keyboard,
-  // so it moves up instead of staying behind it (and scrolls when the screen is too small).
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const scrollRef = useRef<ScrollView>(null);
-
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    const show = Keyboard.addListener('keyboardWillShow', e => {
-      setKeyboardHeight(Math.max(0, e.endCoordinates.height - insets.bottom));
-      setTimeout(() => scrollRef.current?.scrollToEnd({animated: true}), 60);
-    });
-    const hide = Keyboard.addListener('keyboardWillHide', () => setKeyboardHeight(0));
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, [insets.bottom]);
 
   const [toastMsg, setToastMsg] = useState('');
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -125,10 +107,8 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
 
   return (
     <View style={styles.flex}>
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={[styles.scrollContent, {paddingBottom: 24 + keyboardHeight}]}
-        keyboardShouldPersistTaps="handled">
+      {/* a plain View (not a ScrollView): the form stays exactly where it is when the keyboard opens */}
+      <View style={styles.scrollContent}>
         <View
           style={[
             styles.card,
@@ -197,10 +177,13 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
             )}
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
 
       {/* our own strip behind the Android navigation bar (same colour as the dashboard) */}
       <View style={{height: insets.bottom, backgroundColor: '#d5e1f9'}} />
+
+      {/* while signing in: dashboard-shaped placeholder instead of a blank wait */}
+      {loading && <DashboardSkeleton topInset={insets.top} blockTouches />}
 
       <Animated.View
         pointerEvents="none"
@@ -222,7 +205,7 @@ const styles = StyleSheet.create({
     backgroundColor: BLUE,
   },
   scrollContent: {
-    flexGrow: 1,
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 30,

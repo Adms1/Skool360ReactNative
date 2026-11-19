@@ -53,6 +53,7 @@ if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   include("D:/Project/ReactNative/Skool360Mobile/android/app/.cxx/Debug/4g1j3s3h/x86/safeareacontext_autolinked_build/cmake_install.cmake")
   include("D:/Project/ReactNative/Skool360Mobile/android/app/.cxx/Debug/4g1j3s3h/x86/rnscreens_autolinked_build/cmake_install.cmake")
   include("D:/Project/ReactNative/Skool360Mobile/android/app/.cxx/Debug/4g1j3s3h/x86/rnsvg_autolinked_build/cmake_install.cmake")
+  include("D:/Project/ReactNative/Skool360Mobile/android/app/.cxx/Debug/4g1j3s3h/x86/SystemNavigationBarSpec_autolinked_build/cmake_install.cmake")
   include("D:/Project/ReactNative/Skool360Mobile/android/app/.cxx/Debug/4g1j3s3h/x86/RNCWebViewSpec_autolinked_build/cmake_install.cmake")
 
 endif()

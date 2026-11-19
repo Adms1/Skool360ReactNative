@@ -30,3 +30,15 @@ gradlew assembleRelease
             style={styles.logo}
             resizeMode="contain"
           />
+
+          cd ios
+          bundle install          # installs correct gem versions from Gemfile
+
+          pod deintegrate
+          rm -rf Pods
+          rm -f Podfile.lock
+
+          bundle exec pod install --verbose
+
+          cd ..
+          npx react-native run-ios

@@ -294,6 +294,30 @@ if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
   file(TOUCH_NOCREATE "D:/Project/ReactNative/Skool360Mobile/android/app/.cxx/Debug/4g1j3s3h/arm64-v8a/CMakeFiles/cmake.verify_globs")
 endif()
 
+# react_codegen_SRCS at D:/Project/ReactNative/Skool360Mobile/node_modules/react-native-system-navigation-bar/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
+file(GLOB NEW_GLOB LIST_DIRECTORIES true "D:/Project/ReactNative/Skool360Mobile/node_modules/react-native-system-navigation-bar/android/build/generated/source/codegen/jni/*.cpp")
+set(OLD_GLOB
+  "D:/Project/ReactNative/Skool360Mobile/node_modules/react-native-system-navigation-bar/android/build/generated/source/codegen/jni/SystemNavigationBarSpec-generated.cpp"
+  )
+if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
+  message("-- GLOB mismatch!")
+  file(TOUCH_NOCREATE "D:/Project/ReactNative/Skool360Mobile/android/app/.cxx/Debug/4g1j3s3h/arm64-v8a/CMakeFiles/cmake.verify_globs")
+endif()
+
+# react_codegen_SRCS at D:/Project/ReactNative/Skool360Mobile/node_modules/react-native-system-navigation-bar/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
+file(GLOB NEW_GLOB LIST_DIRECTORIES true "D:/Project/ReactNative/Skool360Mobile/node_modules/react-native-system-navigation-bar/android/build/generated/source/codegen/jni/react/renderer/components/SystemNavigationBarSpec/*.cpp")
+set(OLD_GLOB
+  "D:/Project/ReactNative/Skool360Mobile/node_modules/react-native-system-navigation-bar/android/build/generated/source/codegen/jni/react/renderer/components/SystemNavigationBarSpec/ComponentDescriptors.cpp"
+  "D:/Project/ReactNative/Skool360Mobile/node_modules/react-native-system-navigation-bar/android/build/generated/source/codegen/jni/react/renderer/components/SystemNavigationBarSpec/EventEmitters.cpp"
+  "D:/Project/ReactNative/Skool360Mobile/node_modules/react-native-system-navigation-bar/android/build/generated/source/codegen/jni/react/renderer/components/SystemNavigationBarSpec/Props.cpp"
+  "D:/Project/ReactNative/Skool360Mobile/node_modules/react-native-system-navigation-bar/android/build/generated/source/codegen/jni/react/renderer/components/SystemNavigationBarSpec/ShadowNodes.cpp"
+  "D:/Project/ReactNative/Skool360Mobile/node_modules/react-native-system-navigation-bar/android/build/generated/source/codegen/jni/react/renderer/components/SystemNavigationBarSpec/States.cpp"
+  )
+if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
+  message("-- GLOB mismatch!")
+  file(TOUCH_NOCREATE "D:/Project/ReactNative/Skool360Mobile/android/app/.cxx/Debug/4g1j3s3h/arm64-v8a/CMakeFiles/cmake.verify_globs")
+endif()
+
 # react_codegen_SRCS at D:/Project/ReactNative/Skool360Mobile/node_modules/react-native-webview/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
 file(GLOB NEW_GLOB LIST_DIRECTORIES true "D:/Project/ReactNative/Skool360Mobile/node_modules/react-native-webview/android/build/generated/source/codegen/jni/*.cpp")
 set(OLD_GLOB

@@ -28,6 +28,7 @@ import {registerDeviceForPush, consumePendingRedirect} from '../services/Notific
 import {AuthService} from '../services/Authservice';
 import {ToastAndroid} from 'react-native';
 import OfflineView from './OfflineView';
+import DashboardSkeleton from './DashboardSkeleton';
 const WebView = RNWebView as any;
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DashboardWebView'>;
@@ -218,7 +219,6 @@ const DashboardWebViewScreen: React.FC<Props> = ({route, navigation}) => {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const currentUrlRef = useRef(API_CONFIG.DASHBOARD_URL);
   const [isOnDashboard, setIsOnDashboard] = useState(false);
-  const skeletonPulse = useRef(new Animated.Value(0.45)).current;
   const showSplash = authenticating && !userOptions;
   const springTo = (toValue: number) => {
     Animated.spring(pullAnim, {toValue, useNativeDriver: true, friction: 8}).start();
@@ -520,18 +520,6 @@ useEffect(() => {
     });
     return () => subscription.remove();
   }, [videoUrl]);
- // Skeleton placeholder: the grey blocks softly fade in and out while the dashboard is loading
- useEffect(() => {
-   if (!showSplash) return;
-   const loop = Animated.loop(
-     Animated.sequence([
-       Animated.timing(skeletonPulse, {toValue: 1, duration: 750, useNativeDriver: true}),
-       Animated.timing(skeletonPulse, {toValue: 0.45, duration: 750, useNativeDriver: true}),
-     ]),
-   );
-   loop.start();
-   return () => loop.stop();
- }, [showSplash, skeletonPulse]);
 const redirectToLogin = () => {
   if (loggedOutRef.current) return;
   loggedOutRef.current = true;
@@ -1028,28 +1016,7 @@ const finishFileJob = (p: any) => {
             {!hideWebView && (
               <View style={{height: insets.bottom, backgroundColor: '#d5e1f9'}} />
             )}
-        {showSplash && (
-          <View pointerEvents="none" style={styles.skeletonScreen}>
-            <Animated.View style={{opacity: skeletonPulse}}>
-              <View style={styles.skeletonHeader}>
-                <View style={styles.skeletonHeaderIcon} />
-                <View style={styles.skeletonYearPill} />
-                <View style={styles.skeletonHeaderSpacer} />
-                <View style={styles.skeletonHeaderIcon} />
-                <View style={styles.skeletonHeaderIcon} />
-                <View style={styles.skeletonHeaderIcon} />
-              </View>
-              <View style={styles.skeletonGrid}>
-                {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
-                  <View key={i} style={styles.skeletonTile}>
-                    <View style={styles.skeletonTileIcon} />
-                    <View style={styles.skeletonTileLine} />
-                  </View>
-                ))}
-              </View>
-            </Animated.View>
-          </View>
-        )}
+        {showSplash && <DashboardSkeleton />}
     {!!loadError && <OfflineView title={loadError} onRetry={handleRetry} />}
       {!hideWebView && (
         <Animated.View
